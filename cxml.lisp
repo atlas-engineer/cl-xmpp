@@ -7,15 +7,7 @@
 (in-package :xmpp)
 
 (defclass stanza-handler (cxml:sax-proxy)
-  ((init-callback
-    :initarg :init-callback
-    :accessor init-callback
-    :initform 'default-init-callback)
-   (stanza-callback
-    :initarg :stanza-callback
-    :accessor stanza-callback
-    :initform 'default-stanza-callback)
-   (depth
+  ((depth
     :initform 0
     :accessor depth)))
 
@@ -28,19 +20,31 @@
 (defmethod sax:start-element ((handler stanza-handler) uri lname qname attrs)
   (declare (ignore uri lname))
   (when (eql (depth handler) 0)
-    (if (and qname (string-equal "stream:stream" qname))
-	; Create an element for DOM-TO-EVENT so we don't have to have
-	; any specialized code just to handle stream:stream.
-	(let* ((document (dom:create-document))
-	       (element (dom:create-element document qname))
-	       (callback (init-callback handler)))
-	  (dolist (attribute attrs)
-	    (let ((name (sax::attribute-qname attribute))
-		  (value (sax::attribute-value attribute)))
-	      (dom:set-attribute element name value)))
-	  (when callback
-	    (funcall callback element)))
-      (start-sax-document handler)))
+;    (if (and qname (string-equal "stream:stream" qname))
+;	; Create an element for DOM-TO-EVENT so we don't have to have
+;	; any specialized code just to handle stream:stream.
+;	(let* ((document (dom:create-document))
+;	       (element (dom:create-element document qname))
+;	       (callback (init-callback handler)))
+;	  (dolist (attribute attrs)
+;	    (let ((name (sax::attribute-qname attribute))
+;		  (value (sax::attribute-value attribute)))
+;	      (dom:set-attribute element name value)))
+;	  (when callback
+;	    (funcall callback element)))
+;      (start-sax-document handler)))
+    (if (string-equal "stream:stream" qname)
+        ;; Create an element for DOM-TO-EVENT so we don't have to have
+        ;; any specialized code just to handle stream:stream.
+        (let* ((document (dom:create-document))
+               (element (dom:create-element document qname)))
+          (dom:append-child document element)
+          (dolist (attribute attrs)
+            (let ((name (sax::attribute-qname attribute))
+                  (value (sax::attribute-value attribute)))
+              (dom:set-attribute element name value)))
+          (throw 'stanza document))
+        (start-sax-document handler)))
   (incf (depth handler))
   (call-next-method))
 
@@ -53,10 +57,13 @@
   (declare (ignore uri lname qname))
   (decf (depth handler))
   (call-next-method)
-  (let ((callback (stanza-callback handler)))
-    (when (and (eql (depth handler) 0) callback)
-      (funcall callback (dom-impl::document
-			 (cxml:proxy-chained-handler handler))))))
+;  (let ((callback (stanza-callback handler)))
+;    (when (and (eql (depth handler) 0) callback)
+;      (funcall callback (dom-impl::document
+;			 (cxml:proxy-chained-handler handler))))))
+  (when (eql (depth handler) 0)
+    (throw 'stanza
+      (dom-impl::document (cxml:proxy-chained-handler handler)))))
 
 ;;; The default implementation of this function in CXML does not
 ;;; check whether or not the nodelist is NIL and dom:length et al

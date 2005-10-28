@@ -1,5 +1,5 @@
-;;;; $Id: result-parsing.lisp,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
-;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result-parsing.lisp,v $
+;;;; $Id: result.lisp,v 1.1 2005/10/28 13:18:04 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
@@ -144,6 +144,45 @@ cl-xmpp-created data and access it that way instead.")
     xml-element))
 
 ;;
+;; Error
+;;
+
+(defclass xmpp-protocol-error ()
+  ((code
+    :accessor code
+    :initarg :code)
+   (name
+    :accessor name
+    :initarg :name)))
+
+(defclass xmpp-protocol-error-modify (xmpp-protocol-error) ())
+(defclass xmpp-protocol-error-cancel (xmpp-protocol-error) ())
+(defclass xmpp-protocol-error-wait (xmpp-protocol-error) ())
+(defclass xmpp-protocol-error-auth (xmpp-protocol-error) ())
+
+(defun get-error-data (name)
+  (assoc name *errors*))
+
+(defun map-error-type-to-class (type)
+  (case type
+    (modify (find-class 'xmpp-protocol-error-modify))
+    (cancel (find-class 'xmpp-protocol-error-cancel))
+    (wait (find-class 'xmpp-protocol-error-wait))
+    (auth (find-class 'xmpp-protocol-error-auth))))
+
+;;; If an error element occurs within a, say, message element
+;;; do I want to include the error within the message, the
+;;; message within the error, or discard the message and just
+;;; return the error?  I'm thinking the second option.
+(defmethod make-error ((object xml-element))
+  (let* ((name (intern (string-upcase (name (car (elements object)))) :keyword))
+	 (data (get-error-data name))
+	 (type (second data))
+	 (code (third data))
+	 (class (map-error-type-to-class type)))
+    (make-instance class :code code :name name :type type)))
+
+;;
 ;; Event interface
 ;;
 
@@ -187,17 +226,30 @@ cl-xmpp-created data and access it that way instead.")
     :accessor from
     :initarg :from
     :initform nil)
+   (show
+    :accessor show
+    :initarg :show
+    :initform nil)
    (type-
     :accessor type-
     :initarg :type-
     :initform nil)))
 
-;;; XXX: Is the ask attribute of the <presence/> element part of the RFC?
+(defmethod print-object ((object presence) stream)
+  "Print the object for the Lisp reader."
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "from:~a show:~a" (from object) (show object))))
+
+;;; XXX: Is the ask attribute of the <presence/> element part of the RFC/JEP?
 (defmethod xml-element-to-event ((object xml-element) (name (eql :presence)))
-  (make-instance 'presence
-		 :from (value (get-attribute object "from"))
-		 :to (value (get-attribute object "to"))
-		 :type (value (get-attribute object "type"))))
+  (let ((show (get-element object "show")))
+    (when show
+      (setq show (data (get-element show "#text"))))
+    (make-instance 'presence
+		   :from (value (get-attribute object "from"))
+		   :to (value (get-attribute object "to"))
+		   :show show
+		   :type- (value (get-attribute object "type")))))
 
 (defclass contact ()
   ((jid
@@ -217,7 +269,7 @@ cl-xmpp-created data and access it that way instead.")
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "~a (~a)" (jid object) (name object))))
 
-(defclass roster ()
+(defclass roster (event)
   ((items
     :accessor items
     :initarg :items
@@ -244,9 +296,9 @@ cl-xmpp-created data and access it that way instead.")
     (case id
       (:roster_1 (make-roster object))
       (t name))))
-   ;;; XXX: should catch stream errors here.  not sure if i want to
-   ;;; make them into conditions and signal them or just make instances
-   ;;; of an error class and return them.  leaning towards latter.
+
+(defmethod xml-element-to-event ((object xml-element) (name (eql :error)))
+  (make-error object))
 
 (defmethod xml-element-to-event ((object xml-element) name)
   name)
@@ -258,3 +310,12 @@ cl-xmpp-created data and access it that way instead.")
   (xml-element-to-event
    object (intern (string-upcase (name object)) :keyword)))
 
+;;
+;; Handle
+;;
+
+(defmethod handle ((object list))
+  (mapc #'handle object))
+
+(defmethod handle (object)
+  (format t "~&Received: ~a~%" object))

@@ -1,5 +1,5 @@
-;;;; $Id$
-;;;; $Source$
+;;;; $Id: utility.lisp,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
@@ -23,8 +23,11 @@
       (setf (aref array position) (char-code (aref string position))))
     array))
 
-(defun default-stanza-callback (stanza)
-  (format t "default-stanza-callback:~a~%" stanza))
+(defun default-stanza-callback (stanza &key dom-repr)
+  (let ((result (parse-result stanza)))
+    (if dom-repr
+	result
+      (handle (dom-to-event result)))))
 
 (defun default-init-callback (stanza)
   (format t "default-init-callback:~a~%" stanza))

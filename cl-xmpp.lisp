@@ -1,5 +1,5 @@
-;;;; $Id$
-;;;; $Source$
+;;;; $Id: cl-xmpp.lisp,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
@@ -13,6 +13,9 @@
    (socket
     :accessor socket
     :initarg :socket
+    :initform nil)
+   (server-xstream
+    :accessor server-xstream
     :initform nil)
    (hostname
     :accessor hostname
@@ -36,7 +39,10 @@ details are left to the programmer."))
 	(format stream " (open)")
       (format stream " (closed)"))))
 
-;;; XXX: "not-a-pathname"?  blech.
+;;; XXX: "not-a-pathname"?  Need it because CXML wants to call
+;;; pathname on the stream and without one it returns NIL which
+;;; CXML breaks on.
+#+sbcl
 (defun connect (&key (hostname *default-hostname*) (port *default-port*))
   "Open TCP connection to hostname."
   (let ((socket (sb-bsd-sockets:make-inet-socket :stream :tcp))
@@ -53,12 +59,27 @@ details are left to the programmer."))
 		   :hostname hostname
 		   :port port)))
 
+#+allegro
+(defun connect (&key (hostname *default-hostname*) (port *default-port*))
+  "Open TCP connection to hostname."
+  (let ((socket (socket:make-socket :remote-host hostname :remote-port port)))
+    ;; fixme: (setf (sb-bsd-sockets:non-blocking-mode socket) t)
+    (make-instance 'connection
+                   :server-stream socket
+                   :socket socket
+		   :hostname hostname
+		   :port port)))
+
 (defmethod make-connection-and-debug-stream ((connection connection))
   "Helper function to make a broadcast stream for this connection's
 server-stream and the *debug-stream*."
   ;;; Hook onto this if you want the output written by CXML to be
   ;;; sent to one of your streams for debugging or whatever.
-  (make-broadcast-stream (server-stream connection)))
+  ;(make-broadcast-stream (server-stream connection)))
+  ;; FIXME: BROADCAST-STREAM doesn't actually work here because it is a
+  ;; character stream, not a binary stream.  Need to come up with a
+  ;; replacement.
+  (server-stream connection))
 
 (defmethod connectedp ((connection connection))
   "Returns t if `connection' is connected to a server and is ready for
@@ -67,19 +88,53 @@ input."
     (and (streamp stream)
          (open-stream-p stream))))
 
+#+sbcl
 (defmethod disconnect ((connection connection))
   "Disconnect TCP connection."
   (sb-bsd-sockets:socket-close (socket connection))
   connection)
 
-(defmethod receive-stanza-loop ((connection connection)
-				&key stanza-callback init-callback)
-  (let ((handler (make-instance 'stanza-handler)))
-    (when stanza-callback
-      (setf (stanza-callback handler) stanza-callback))
-    (when init-callback
-      (setf (init-callback handler) init-callback))
-    (cxml:parse-stream (server-stream connection) handler)))
+#+allegro
+(defmethod disconnect ((connection connection))
+  "Disconnect TCP connection."
+  (close (socket connection))
+  connection)
+
+(defmethod receive-stanza-loop ((connection connection)	&key
+				(stanza-callback 'default-stanza-callback)
+				(init-callback 'default-init-callback))
+;  (let ((handler (make-instance 'stanza-handler)))
+;    (when stanza-callback
+;      (setf (stanza-callback handler) stanza-callback))
+;    (when init-callback
+;      (setf (init-callback handler) init-callback))
+;    (cxml:parse-stream (server-stream connection) handler)))
+  (loop
+    (let* ((stanza (read-stanza connection))
+           (tagname (dom:tag-name (dom:document-element stanza))))
+      (cond
+        ((equal tagname "stream:stream")
+          (when init-callback
+            (funcall init-callback stanza)))
+        ((equal tagname "stream:error")
+          (default-stanza-callback stanza) ;print it
+          (error "received error"))
+        (t
+          (when stanza-callback
+            (funcall stanza-callback stanza)))))))
+
+(defun read-stanza (connection)
+  (unless (server-xstream connection)
+    (setf (server-xstream connection)
+          (cxml:make-xstream (server-stream connection))))
+  (force-output (server-stream connection))
+  (catch 'stanza
+    (let ((cxml::*default-namespace-bindings*
+           (acons "stream"
+                  "http://etherx.jabber.org/streams"
+                  cxml::*default-namespace-bindings*)))
+      (cxml::parse-xstream (server-xstream connection)
+                           (make-instance 'stanza-handler)))))
 
 ;;; This is mostly useful for debugging output from servers.
 (defmethod get-stream-reply ((connection connection))
@@ -103,6 +158,22 @@ be replaced with more appropriate usage of the sockets."
   "Read reply from connection's socket and return it as a string."
   (get-output-stream-string (get-stream-reply connection)))
 
+(defmethod receive-stanzas ((connection connection) &key dom-repr)
+  "Read reply from connection's socket and parse the result
+as XML data.  Return DOM object.  If dom-repr is T the return
+value will be a DOM-ish structure of xml-element/xml-attribute
+objects."
+  (let ((objects nil)
+	(xml-string (get-string-reply connection)))
+    (handler-case (push (cxml::parse-string xml-string
+                         (make-instance 'stanza-handler))
+			objects)
+     (type-error () objects)
+     (sb-kernel::arg-count-error () objects))
+    (let ((result (remove nil (flatten (parse-result objects)))))
+      (if dom-repr
+	  result
+	(dom-to-event result)))))
 
 (defmacro with-xml-stream ((stream connection) &body body)
   "Helper macro to make it easy to control outputting XML
@@ -115,6 +186,7 @@ so it should probably be renamed."
   "Write string to stream as a sequence of bytes and not
 characters."
   (write-sequence (string-to-array string) stream)
+  (finish-output stream)
   string)
 
 (defmethod begin-xml-stream ((connection connection))
@@ -136,14 +208,23 @@ the server again."
 
 (defmacro with-iq ((connection &key id (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
-  `(progn
-     (cxml:with-xml-output (cxml:make-octet-stream-sink
-			    (make-connection-and-debug-stream ,connection))
-      (cxml:with-element "iq"
-       (cxml:attribute "id" ,id)
-       (cxml:attribute "type" ,type)
-       ,@body))
-    ,connection))
+;  `(progn
+;     (cxml:with-xml-output (cxml:make-octet-stream-sink
+;			    (make-connection-and-debug-stream ,connection))
+;      (cxml:with-element "iq"
+;       (cxml:attribute "id" ,id)
+;       (cxml:attribute "type" ,type)
+;       ,@body))
+;    ,connection))
+  (let ((stream (gensym)))
+    `(let ((,stream (make-connection-and-debug-stream ,connection)))
+       (cxml:with-xml-output (cxml:make-octet-stream-sink ,stream)
+         (cxml:with-element "iq"
+           (cxml:attribute "id" ,id)
+           (cxml:attribute "type" ,type)
+           ,@body))
+       (finish-output ,stream)
+       ,connection)))
 
 (defmacro with-iq-query ((connection &key xmlns id (type "get")) &body body)
   "Macro to make it easier to write QUERYs."

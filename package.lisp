@@ -1,5 +1,5 @@
-;;;; $Id$
-;;;; $Source$
+;;;; $Id: package.lisp,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
@@ -25,5 +25,6 @@
      ;; event interface
      :event
      :message :to :from :body
+     :handle
      ;; variables
      :*default-port :*default-hostname*)))
