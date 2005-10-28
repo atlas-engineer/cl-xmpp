@@ -1,6 +1,6 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id$
-;;;; $Source$
+;;;; $Id: cl-xmpp.asd,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
 
@@ -25,8 +25,8 @@
                         :depends-on ("variable"))
 		 (:file "cxml"
 			:depends-on ("utility"))
-		 (:file "result-parsing"
+		 (:file "result"
 			:depends-on ("cxml"))
                  (:file "cl-xmpp"
-                        :depends-on ("result-parsing"))))
+                        :depends-on ("result"))))
 

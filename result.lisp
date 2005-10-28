@@ -1,5 +1,5 @@
-;;;; $Id$
-;;;; $Source$
+;;;; $Id: result-parsing.lisp,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result-parsing.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
