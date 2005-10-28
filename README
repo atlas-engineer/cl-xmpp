@@ -1,0 +1,27 @@
+This is a Common Lisp implementation of the XMPP RFCs.  The 
+implementation is currently very immature and comments are
+solicited.
+
+Non-normative example:
+
+* (defparameter *c* (xmpp:connect :hostname "my-xmpp-server"))
+#<CONNECTION open>
+
+* (xmpp:begin-xml-stream *c*)
+... output ...
+
+* (xmpp:auth *c* "username" "password" "resource")
+... output ...
+
+* (xmpp:receive-stanzas *c*)
+... output ...
+
+* (xmpp:message *c* "username" "message")
+... output ...
+
+; let's assume a user replies to you
+* (xmpp:receive-stanzas *c*)
+(#<MESSAGE>)
+
+And so on and so forth.  Check cl-xmpp.lisp and package.lisp for
+symbols which are exported and might be of use.
