@@ -6,6 +6,4 @@
  - also, i'm interning things which will screw up lisps with up/down
    case different.
 
-- ok, test receive-stanza-loop with a file with contents
-  which i think i'm getting and see if it blows up with
-  that.
+- add support for JEP0030 service discovery

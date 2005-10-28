@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.1 2005/10/28 13:18:04 eenge Exp $
+;;;; $Id: result.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -295,6 +295,19 @@ cl-xmpp-created data and access it that way instead.")
   (let ((id (intern (string-upcase (value (get-attribute object "id"))) :keyword)))
     (case id
       (:roster_1 (make-roster object))
+      (:reg2 (if (string-equal (value (get-attribute object "type")) "result")
+		 :registration-successful
+	       (make-error (get-element object "error"))))
+      (:unreg_1 (if (string-equal (value (get-attribute object "type")) "result")
+		    :registration-cancellation-successful
+		  (make-error (get-element object "error"))))
+      (:change1 (if (string-equal (value (get-attribute object "type")) "result")
+		    :password-changed-succesfully
+		  (make-error (get-element object "error"))))
+      (:error (make-error (get-element object "error")))
+      (:auth2 (if (string-equal (value (get-attribute object "type")) "result")
+		    :authentication-successful
+		(make-error (get-element object "error"))))
       (t name))))
 
 (defmethod xml-element-to-event ((object xml-element) (name (eql :error)))

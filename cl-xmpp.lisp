@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.1.1.1 2005/10/28 13:16:02 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -251,6 +251,18 @@ the server again."
     (cxml:with-element "password" (cxml:text password))
     (cxml:with-element "name" (cxml:text name))
     (cxml:with-element "email" (cxml:text email))))
+
+(defmethod cancel-registration ((connection connection))
+  (with-iq-query (connection :id "unreg1" :type "set" :xmlns "jabber:iq:register")
+   (cxml:with-element "remove")))
+
+;;; XXX: connection should know about username?
+(defmethod change-password ((connection connection) username new-password)
+  (with-iq-query (connection :id "change1" :type "set" :xmlns "jabber:iq:register")
+   (cxml:with-element "username"
+    (cxml:text username))
+   (cxml:with-element "password"
+    (cxml:text new-password))))
 
 (defmethod auth-requirements ((connection connection) username)
   (with-iq-query (connection :id "auth1" :xmlns "jabber:iq:auth")
