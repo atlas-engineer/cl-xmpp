@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.3 2005/10/28 21:17:59 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -42,33 +42,34 @@ details are left to the programmer."))
 ;;; XXX: "not-a-pathname"?  Need it because CXML wants to call
 ;;; pathname on the stream and without one it returns NIL which
 ;;; CXML breaks on.
-#+sbcl
 (defun connect (&key (hostname *default-hostname*) (port *default-port*))
   "Open TCP connection to hostname."
-  (let ((socket (sb-bsd-sockets:make-inet-socket :stream :tcp))
-	(ip-address (car (sb-bsd-sockets:host-ent-addresses
-			  (sb-bsd-sockets:get-host-by-name hostname)))))
-    (sb-bsd-sockets:socket-connect socket ip-address port)
-    (setf (sb-bsd-sockets:non-blocking-mode socket) t)
-    (make-instance 'connection
-                   :server-stream (sb-bsd-sockets:socket-make-stream
-				   socket :input t :output t :buffering :none
-				   :element-type '(unsigned-byte 8)
-				   :pathname #p"/tmp/not-a-pathname")
-                   :socket socket
-		   :hostname hostname
-		   :port port)))
-
-#+allegro
-(defun connect (&key (hostname *default-hostname*) (port *default-port*))
-  "Open TCP connection to hostname."
-  (let ((socket (socket:make-socket :remote-host hostname :remote-port port)))
-    ;; fixme: (setf (sb-bsd-sockets:non-blocking-mode socket) t)
-    (make-instance 'connection
-                   :server-stream socket
-                   :socket socket
-		   :hostname hostname
-		   :port port)))
+  #+sbcl (let ((socket (sb-bsd-sockets:make-inet-socket :stream :tcp))
+               (ip-address (car (sb-bsd-sockets:host-ent-addresses
+                                 (sb-bsd-sockets:get-host-by-name hostname)))))
+           (sb-bsd-sockets:socket-connect socket ip-address port)
+           (setf (sb-bsd-sockets:non-blocking-mode socket) t)
+           (make-instance 'connection
+                          :server-stream (sb-bsd-sockets:socket-make-stream
+                                          socket :input t :output t :buffering :none
+                                          :element-type '(unsigned-byte 8)
+                                          :pathname #p"/tmp/not-a-pathname")
+                          :socket socket
+                          :hostname hostname
+                          :port port))
+  #+allegro (let ((socket (socket:make-socket :remote-host hostname :remote-port port)))
+              ;; fixme: (setf (sb-bsd-sockets:non-blocking-mode socket) t)
+              (make-instance 'connection
+                             :server-stream socket
+                             :socket socket
+                             :hostname hostname
+                             :port port))
+  #+lispworks (let ((socket (comm:open-tcp-stream hostname port :element-type '(unsigned-byte 8))))
+                (make-instance 'connection
+                               :server-stream socket
+                               :socket socket
+                               :hostname hostname
+                               :port port)))
 
 (defmethod make-connection-and-debug-stream ((connection connection))
   "Helper function to make a broadcast stream for this connection's
@@ -88,40 +89,30 @@ input."
     (and (streamp stream)
          (open-stream-p stream))))
 
-#+sbcl
 (defmethod disconnect ((connection connection))
   "Disconnect TCP connection."
-  (sb-bsd-sockets:socket-close (socket connection))
-  connection)
-
-#+allegro
-(defmethod disconnect ((connection connection))
-  "Disconnect TCP connection."
-  (close (socket connection))
+  #+sbcl (sb-bsd-sockets:socket-close (socket connection))
+  #+(or allegro lispworks) (close (socket connection))
   connection)
 
 (defmethod receive-stanza-loop ((connection connection)	&key
 				(stanza-callback 'default-stanza-callback)
-				(init-callback 'default-init-callback))
-;  (let ((handler (make-instance 'stanza-handler)))
-;    (when stanza-callback
-;      (setf (stanza-callback handler) stanza-callback))
-;    (when init-callback
-;      (setf (init-callback handler) init-callback))
-;    (cxml:parse-stream (server-stream connection) handler)))
+				(init-callback 'default-init-callback)
+                                dom-repr)
   (loop
     (let* ((stanza (read-stanza connection))
            (tagname (dom:tag-name (dom:document-element stanza))))
       (cond
         ((equal tagname "stream:stream")
           (when init-callback
-            (funcall init-callback stanza)))
+            (funcall init-callback stanza :dom-repr dom-repr)))
         ((equal tagname "stream:error")
-          (default-stanza-callback stanza) ;print it
-          (error "received error"))
+          (when stanza-callback
+            (funcall stanza-callback stanza :dom-repr dom-repr))
+          (error "Received error."))
         (t
           (when stanza-callback
-            (funcall stanza-callback stanza)))))))
+            (funcall stanza-callback stanza :dom-repr dom-repr)))))))
 
 (defun read-stanza (connection)
   (unless (server-xstream connection)
@@ -135,45 +126,6 @@ input."
                   cxml::*default-namespace-bindings*)))
       (cxml::parse-xstream (server-xstream connection)
                            (make-instance 'stanza-handler)))))
-
-;;; This is mostly useful for debugging output from servers.
-(defmethod get-stream-reply ((connection connection))
-  "Read reply from connection's socket into a new stream
-and return this stream.  This is just a way to deal with
-not getting EOFs or anything like that and should probably
-be replaced with more appropriate usage of the sockets."
-  (let* ((output-stream (make-string-output-stream))
-	 (broadcast-stream (make-broadcast-stream
-			    output-stream
-			    *debug-stream*)))
-    (do ((line (sb-bsd-sockets:socket-receive (socket connection) nil 1)
-	       (sb-bsd-sockets:socket-receive (socket connection) nil 1)))
-	((or (null line)
-	     (eq (aref line 0) #\Null)))
-      (write-string line broadcast-stream))
-    output-stream))
-
-;;; XXX: this one should go away, too
-(defmethod get-string-reply ((connection connection))
-  "Read reply from connection's socket and return it as a string."
-  (get-output-stream-string (get-stream-reply connection)))
-
-(defmethod receive-stanzas ((connection connection) &key dom-repr)
-  "Read reply from connection's socket and parse the result
-as XML data.  Return DOM object.  If dom-repr is T the return
-value will be a DOM-ish structure of xml-element/xml-attribute
-objects."
-  (let ((objects nil)
-	(xml-string (get-string-reply connection)))
-    (handler-case (push (cxml::parse-string xml-string
-                         (make-instance 'stanza-handler))
-			objects)
-     (type-error () objects)
-     (sb-kernel::arg-count-error () objects))
-    (let ((result (remove nil (flatten (parse-result objects)))))
-      (if dom-repr
-	  result
-	(dom-to-event result)))))
 
 (defmacro with-xml-stream ((stream connection) &body body)
   "Helper macro to make it easy to control outputting XML
@@ -206,41 +158,39 @@ the server again."
   (with-xml-stream (stream connection)
    (xml-output stream "</stream:stream>")))
 
-(defmacro with-iq ((connection &key id (type "get")) &body body)
+(defmacro with-iq ((connection &key id to (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
-;  `(progn
-;     (cxml:with-xml-output (cxml:make-octet-stream-sink
-;			    (make-connection-and-debug-stream ,connection))
-;      (cxml:with-element "iq"
-;       (cxml:attribute "id" ,id)
-;       (cxml:attribute "type" ,type)
-;       ,@body))
-;    ,connection))
   (let ((stream (gensym)))
     `(let ((,stream (make-connection-and-debug-stream ,connection)))
        (cxml:with-xml-output (cxml:make-octet-stream-sink ,stream)
          (cxml:with-element "iq"
            (cxml:attribute "id" ,id)
+           (when ,to
+             (cxml:attribute "to" ,to))
            (cxml:attribute "type" ,type)
            ,@body))
        (finish-output ,stream)
        ,connection)))
 
-(defmacro with-iq-query ((connection &key xmlns id (type "get")) &body body)
+(defmacro with-iq-query ((connection &key xmlns id (to nil) (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
   `(progn
-     (with-iq (connection :id ,id :type ,type)
+     (with-iq (connection :id ,id :type ,type :to ,to)
       (cxml:with-element "query"
        (cxml:attribute "xmlns" ,xmlns)
        ,@body))
     ,connection))
 
 ;;
-;; Basic operations
+;; Discovery
 ;;
 
-;;; XXX: Add support for handling an XMPP server which announces
-;;; its features.
+(defmethod discover ((connection connection) to)
+  (with-iq-query (connection :id "info1" :xmlns "http://jabber.org/protocol/disco#info" :to to)))
+  
+;;
+;; Basic operations
+;;
 
 (defmethod registration-requirements ((connection connection))
   (with-iq-query (connection :id "reg1" :xmlns "jabber:iq:register")))
@@ -354,3 +304,4 @@ the server again."
   (with-iq-query (connection :id "getlist2" :xmlns "jabber:iq:privacy")
    (cxml:with-element "list"
     (cxml:attribute "name" name))))
+

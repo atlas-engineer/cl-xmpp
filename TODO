@@ -2,12 +2,8 @@
 
 - sasl/tls
 
-- don't like xmlns and query ids as strings
- - also, i'm interning things which will screw up lisps with up/down
-   case different.
+- also, i'm interning things which will screw up lisps with up/down
+  case different.
 
 - add support for JEP0030 service discovery
 
-- also flesh out the HANDLE mechanism better and go over
-  and make sure correct symbols are exported and remove
-  no longer needed code.

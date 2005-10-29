@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
+;;;; $Id: result.lisp,v 1.3 2005/10/28 21:17:59 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -135,7 +135,7 @@ cl-xmpp-created data and access it that way instead.")
     xml-element))
 
 (defmethod parse-result ((node dom-impl::node))
-  (let* ((name (dom:node-name node))
+  (let* ((name (intern (string-upcase (dom:node-name node)) :keyword))
 	 (xml-element (make-instance 'xml-element :name name :node node)))
     (dom:do-node-list (attribute (dom:attributes node))
       (push (parse-result attribute) (attributes xml-element)))
@@ -168,7 +168,8 @@ cl-xmpp-created data and access it that way instead.")
     (modify (find-class 'xmpp-protocol-error-modify))
     (cancel (find-class 'xmpp-protocol-error-cancel))
     (wait (find-class 'xmpp-protocol-error-wait))
-    (auth (find-class 'xmpp-protocol-error-auth))))
+    (auth (find-class 'xmpp-protocol-error-auth))
+    (t (find-class 'xmpp-protocol-error))))
 
 ;;; If an error element occurs within a, say, message element
 ;;; do I want to include the error within the message, the
@@ -180,7 +181,7 @@ cl-xmpp-created data and access it that way instead.")
 	 (type (second data))
 	 (code (third data))
 	 (class (map-error-type-to-class type)))
-    (make-instance class :code code :name name :type type)))
+    (make-instance class :code code :name name)))
 
 ;;
 ;; Event interface
@@ -213,9 +214,9 @@ cl-xmpp-created data and access it that way instead.")
 ;;; you do please feel free to submit a patch.
 (defmethod xml-element-to-event ((object xml-element) (name (eql :message)))
   (make-instance 'message
-		 :from (value (get-attribute object "from"))
-		 :to (value (get-attribute object "to"))
-		 :body (data (get-element (get-element object "body") "#text"))))
+		 :from (value (get-attribute object :from))
+		 :to (value (get-attribute object :to))
+		 :body (data (get-element (get-element object :body) :\#text))))
 
 (defclass presence (event)
   ((to
@@ -242,14 +243,14 @@ cl-xmpp-created data and access it that way instead.")
 
 ;;; XXX: Is the ask attribute of the <presence/> element part of the RFC/JEP?
 (defmethod xml-element-to-event ((object xml-element) (name (eql :presence)))
-  (let ((show (get-element object "show")))
+  (let ((show (get-element object :show)))
     (when show
-      (setq show (data (get-element show "#text"))))
+      (setq show (data (get-element show :\#text))))
     (make-instance 'presence
-		   :from (value (get-attribute object "from"))
-		   :to (value (get-attribute object "to"))
+		   :from (value (get-attribute object :from))
+		   :to (value (get-attribute object :to))
 		   :show show
-		   :type- (value (get-attribute object "type")))))
+		   :type- (value (get-attribute object :type)))))
 
 (defclass contact ()
   ((jid
@@ -282,35 +283,69 @@ cl-xmpp-created data and access it that way instead.")
 
 (defmethod make-roster ((object xml-element))
   (let ((roster (make-instance 'roster)))
-    (dolist (item (elements (get-element object "query")))
-      (let ((jid (value (get-attribute item "jid")))
-	    (name (value (get-attribute item "name")))
-	    (subscription (value (get-attribute item "subscription"))))
+    (dolist (item (elements (get-element object :query)))
+      (let ((jid (value (get-attribute item :jid)))
+	    (name (value (get-attribute item :name)))
+	    (subscription (value (get-attribute item :subscription))))
 	(push (make-instance 'contact :jid jid :name name :subscription subscription)
 	      (items roster))))
     roster))
 
-;;; XXX: I think I want to make all IDs keywords.
+;;; XXX: must think about this for another few days and then I will
+;;; decide how to represent the disco#info and disco#items data.
+(defclass disco (event)
+  ((xml-element
+    :accessor xml-element
+    :initarg :xml-element)))
+    
+(defclass disco-info (discovery) ())
+(defclass disco-items (discovery) ())
+
+;;; XXX: this is a mess with all the IFs... fix.
 (defmethod xml-element-to-event ((object xml-element) (name (eql :iq)))
-  (let ((id (intern (string-upcase (value (get-attribute object "id"))) :keyword)))
+  (let ((id (intern (string-upcase (value (get-attribute object :id))) :keyword)))
     (case id
       (:roster_1 (make-roster object))
-      (:reg2 (if (string-equal (value (get-attribute object "type")) "result")
+      (:reg2 (if (string-equal (value (get-attribute object :type)) "result")
 		 :registration-successful
-	       (make-error (get-element object "error"))))
-      (:unreg_1 (if (string-equal (value (get-attribute object "type")) "result")
+	       (make-error (get-element object :error))))
+      (:unreg_1 (if (string-equal (value (get-attribute object :type)) "result")
 		    :registration-cancellation-successful
-		  (make-error (get-element object "error"))))
-      (:change1 (if (string-equal (value (get-attribute object "type")) "result")
+		  (make-error (get-element object :error))))
+      (:change1 (if (string-equal (value (get-attribute object :type)) "result")
 		    :password-changed-succesfully
-		  (make-error (get-element object "error"))))
-      (:error (make-error (get-element object "error")))
-      (:auth2 (if (string-equal (value (get-attribute object "type")) "result")
+		  (make-error (get-element object :error))))
+      (:error (make-error (get-element object :error)))
+      (:auth2 (if (string-equal (value (get-attribute object :type)) "result")
 		    :authentication-successful
-		(make-error (get-element object "error"))))
-      (t name))))
+		(make-error (get-element object :error))))
+      (:info1 (if (string-equal (value (get-attribute object :type)) "result")
+                  (make-instance 'disco-info :xml-element xml-element)
+		(make-error (get-element object :error))))
+      (:info2 (if (string-equal (value (get-attribute object :type)) "result")
+                  (make-instance 'disco-info :xml-element xml-element)
+		(make-error (get-element object :error))))
+      (:info3 (if (string-equal (value (get-attribute object :type)) "result")
+                  (make-instance 'disco-info :xml-element xml-element)
+		(make-error (get-element object :error))))
+      (:items1 (if (string-equal (value (get-attribute object :type)) "result")
+                   (make-instance 'disco-items :xml-element xml-element)
+                 (make-error (get-element object :error))))
+      (:items2 (if (string-equal (value (get-attribute object :type)) "result")
+                   (make-instance 'disco-items :xml-element xml-element)
+                 (make-error (get-element object :error))))
+      (:items3 (if (string-equal (value (get-attribute object :type)) "result")
+                   (make-instance 'disco-items :xml-element xml-element)
+                 (make-error (get-element object :error))))
+      (:items4 (if (string-equal (value (get-attribute object :type)) "result")
+                   (make-instance 'disco-items :xml-element xml-element)
+                 (make-error (get-element object :error))))
+      (t object))))
 
 (defmethod xml-element-to-event ((object xml-element) (name (eql :error)))
+  (make-error object))
+
+(defmethod xml-element-to-event ((object xml-element) (name (eql :stream\:error)))
   (make-error object))
 
 (defmethod xml-element-to-event ((object xml-element) name)
