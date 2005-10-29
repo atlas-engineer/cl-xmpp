@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.3 2005/10/28 21:17:59 eenge Exp $
+;;;; $Id: result.lisp,v 1.4 2005/10/29 03:58:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -144,50 +144,14 @@ cl-xmpp-created data and access it that way instead.")
     xml-element))
 
 ;;
-;; Error
-;;
-
-(defclass xmpp-protocol-error ()
-  ((code
-    :accessor code
-    :initarg :code)
-   (name
-    :accessor name
-    :initarg :name)))
-
-(defclass xmpp-protocol-error-modify (xmpp-protocol-error) ())
-(defclass xmpp-protocol-error-cancel (xmpp-protocol-error) ())
-(defclass xmpp-protocol-error-wait (xmpp-protocol-error) ())
-(defclass xmpp-protocol-error-auth (xmpp-protocol-error) ())
-
-(defun get-error-data (name)
-  (assoc name *errors*))
-
-(defun map-error-type-to-class (type)
-  (case type
-    (modify (find-class 'xmpp-protocol-error-modify))
-    (cancel (find-class 'xmpp-protocol-error-cancel))
-    (wait (find-class 'xmpp-protocol-error-wait))
-    (auth (find-class 'xmpp-protocol-error-auth))
-    (t (find-class 'xmpp-protocol-error))))
-
-;;; If an error element occurs within a, say, message element
-;;; do I want to include the error within the message, the
-;;; message within the error, or discard the message and just
-;;; return the error?  I'm thinking the second option.
-(defmethod make-error ((object xml-element))
-  (let* ((name (intern (string-upcase (name (car (elements object)))) :keyword))
-	 (data (get-error-data name))
-	 (type (second data))
-	 (code (third data))
-	 (class (map-error-type-to-class type)))
-    (make-instance class :code code :name name)))
-
-;;
 ;; Event interface
 ;;
 
-(defclass event () ())
+(defclass event ()
+  ((xml-element
+    :accessor xml-element
+    :initarg :xml-element
+    :initform nil)))
 
 (defclass message (event)
   ((to
@@ -214,6 +178,7 @@ cl-xmpp-created data and access it that way instead.")
 ;;; you do please feel free to submit a patch.
 (defmethod xml-element-to-event ((object xml-element) (name (eql :message)))
   (make-instance 'message
+                 :xml-element object
 		 :from (value (get-attribute object :from))
 		 :to (value (get-attribute object :to))
 		 :body (data (get-element (get-element object :body) :\#text))))
@@ -247,6 +212,7 @@ cl-xmpp-created data and access it that way instead.")
     (when show
       (setq show (data (get-element show :\#text))))
     (make-instance 'presence
+                   :xml-element object
 		   :from (value (get-attribute object :from))
 		   :to (value (get-attribute object :to))
 		   :show show
@@ -282,7 +248,7 @@ cl-xmpp-created data and access it that way instead.")
     (format stream "~a contact(s)" (length (items object)))))
 
 (defmethod make-roster ((object xml-element))
-  (let ((roster (make-instance 'roster)))
+  (let ((roster (make-instance 'roster :xml-element object)))
     (dolist (item (elements (get-element object :query)))
       (let ((jid (value (get-attribute item :jid)))
 	    (name (value (get-attribute item :name)))
@@ -291,15 +257,119 @@ cl-xmpp-created data and access it that way instead.")
 	      (items roster))))
     roster))
 
+(defclass identity- (event)
+  ((category
+    :accessor category
+    :initarg :category)
+   (type-
+    :accessor type-
+    :initarg :type-)
+   (name
+    :accessor name
+    :initarg :name)))
+
+(defmethod make-identity ((object xml-element))
+  (make-instance 'identity-
+                 :xml-element object 
+                 :category (value (get-attribute object :category))
+                 :type- (value (get-attribute object :type-))
+                 :name (value (get-attribute object :name))))
+
 ;;; XXX: must think about this for another few days and then I will
 ;;; decide how to represent the disco#info and disco#items data.
 (defclass disco (event)
-  ((xml-element
-    :accessor xml-element
-    :initarg :xml-element)))
+  ((identities
+    :accessor identities
+    :initarg :identities
+    :initform nil)))
     
-(defclass disco-info (discovery) ())
-(defclass disco-items (discovery) ())
+(defclass feature (event)
+  ((var
+    :accessor var
+    :initarg :var
+    :initform "")))
+
+(defmethod make-feature ((object xml-element))
+  (make-instance 'feature :xml-element object :var (value (get-attribute object :var))))
+
+(defclass disco-info (disco)
+  ((features
+    :accessor features
+    :initarg :features
+    :initform nil)))
+
+(defmethod make-disco-info ((object xml-element))
+  (let ((disco-info (make-instance 'disco-info :xml-element object)))
+    (dolist (element (elements object))
+      (case (name element)
+        (:identity (push (make-identity element) (identities disco-info)))
+        (:feature (push (make-feature element) (features disco-info)))))
+    disco-info))
+
+(defclass item (event)
+  ((jid
+    :accessor jid
+    :initarg :jid)
+   (name
+    :accessor name
+    :initarg :name)
+   (node
+    :accessor node
+    :initarg :node
+    :initform nil)))
+
+(defmethod make-item ((object xml-element))
+  (make-instance 'item
+                 :xml-element object 
+                 :jid (value (get-attribute object :jid))
+                 :node (value (get-attribute object :node))
+                 :name (value (get-attribute object :name))))
+
+(defclass disco-items (disco)
+  ((items
+    :accessor items
+    :initarg :items
+    :initform nil)))
+
+(defmethod make-disco-items ((object xml-element))
+  (let ((disco-items (make-instance 'disco-items :xml-element object)))
+    disco-items))
+
+;;
+;; Error
+;;
+
+(defclass xmpp-protocol-error (event)
+  ((code
+    :accessor code
+    :initarg :code)
+   (name
+    :accessor name
+    :initarg :name)))
+
+(defclass xmpp-protocol-error-modify (xmpp-protocol-error) ())
+(defclass xmpp-protocol-error-cancel (xmpp-protocol-error) ())
+(defclass xmpp-protocol-error-wait (xmpp-protocol-error) ())
+(defclass xmpp-protocol-error-auth (xmpp-protocol-error) ())
+
+(defun get-error-data (name)
+  (assoc name *errors*))
+
+(defun map-error-type-to-class (type)
+  (case type
+    (modify (find-class 'xmpp-protocol-error-modify))
+    (cancel (find-class 'xmpp-protocol-error-cancel))
+    (wait (find-class 'xmpp-protocol-error-wait))
+    (auth (find-class 'xmpp-protocol-error-auth))
+    (t (find-class 'xmpp-protocol-error))))
+
+(defmethod make-error ((object xml-element))
+  (let* ((name (intern (string-upcase (name (car (elements object)))) :keyword))
+	 (data (get-error-data name))
+	 (type (second data))
+	 (code (third data))
+	 (class (map-error-type-to-class type)))
+    (make-instance class :code code :name name :xml-element object)))
 
 ;;; XXX: this is a mess with all the IFs... fix.
 (defmethod xml-element-to-event ((object xml-element) (name (eql :iq)))
@@ -320,25 +390,25 @@ cl-xmpp-created data and access it that way instead.")
 		    :authentication-successful
 		(make-error (get-element object :error))))
       (:info1 (if (string-equal (value (get-attribute object :type)) "result")
-                  (make-instance 'disco-info :xml-element xml-element)
+                  (make-disco-info (get-element object :query))
 		(make-error (get-element object :error))))
       (:info2 (if (string-equal (value (get-attribute object :type)) "result")
-                  (make-instance 'disco-info :xml-element xml-element)
+                  (make-disco-info (get-element object :query))
 		(make-error (get-element object :error))))
       (:info3 (if (string-equal (value (get-attribute object :type)) "result")
-                  (make-instance 'disco-info :xml-element xml-element)
+                  (make-disco-info (get-element object :query))
 		(make-error (get-element object :error))))
       (:items1 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-instance 'disco-items :xml-element xml-element)
+                   (make-disco-items (get-element object :query))
                  (make-error (get-element object :error))))
       (:items2 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-instance 'disco-items :xml-element xml-element)
+                   (make-disco-items (get-element object :query))
                  (make-error (get-element object :error))))
       (:items3 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-instance 'disco-items :xml-element xml-element)
+                   (make-disco-items (get-element object :query))
                  (make-error (get-element object :error))))
       (:items4 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-instance 'disco-items :xml-element xml-element)
+                   (make-disco-items (get-element object :query))
                  (make-error (get-element object :error))))
       (t object))))
 
@@ -349,7 +419,8 @@ cl-xmpp-created data and access it that way instead.")
   (make-error object))
 
 (defmethod xml-element-to-event ((object xml-element) name)
-  name)
+  (declare (ignore name))
+  object)
 
 (defmethod dom-to-event ((object list))
   (mapcar #'dom-to-event object))

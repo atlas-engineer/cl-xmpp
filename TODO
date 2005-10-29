@@ -5,5 +5,3 @@
 - also, i'm interning things which will screw up lisps with up/down
   case different.
 
-- add support for JEP0030 service discovery
-

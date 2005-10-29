@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.3 2005/10/28 21:17:59 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.4 2005/10/29 03:58:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -76,10 +76,6 @@ details are left to the programmer."))
 server-stream and the *debug-stream*."
   ;;; Hook onto this if you want the output written by CXML to be
   ;;; sent to one of your streams for debugging or whatever.
-  ;(make-broadcast-stream (server-stream connection)))
-  ;; FIXME: BROADCAST-STREAM doesn't actually work here because it is a
-  ;; character stream, not a binary stream.  Need to come up with a
-  ;; replacement.
   (server-stream connection))
 
 (defmethod connectedp ((connection connection))
@@ -96,8 +92,8 @@ input."
   connection)
 
 (defmethod receive-stanza-loop ((connection connection)	&key
-				(stanza-callback 'default-stanza-callback)
-				(init-callback 'default-init-callback)
+                                (stanza-callback 'default-stanza-callback)
+                                (init-callback 'default-init-callback)
                                 dom-repr)
   (loop
     (let* ((stanza (read-stanza connection))
@@ -172,12 +168,14 @@ the server again."
        (finish-output ,stream)
        ,connection)))
 
-(defmacro with-iq-query ((connection &key xmlns id (to nil) (type "get")) &body body)
+(defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
   `(progn
      (with-iq (connection :id ,id :type ,type :to ,to)
       (cxml:with-element "query"
        (cxml:attribute "xmlns" ,xmlns)
+       (when ,node
+         (cxml:attribute "node" ,node))
        ,@body))
     ,connection))
 
@@ -185,8 +183,12 @@ the server again."
 ;; Discovery
 ;;
 
-(defmethod discover ((connection connection) to)
-  (with-iq-query (connection :id "info1" :xmlns "http://jabber.org/protocol/disco#info" :to to)))
+(defmethod discover ((connection connection) &key (type :info) to node)
+  (let ((xmlns (case type
+                 (:info "http://jabber.org/protocol/disco#info")
+                 (:items "http://jabber.org/protocol/disco#items")
+                 (t (error "Unknown type: ~a (Please choose between :info and :items)" type)))))
+    (with-iq-query (connection :id "info1" :xmlns xmlns :to to :node node))))
   
 ;;
 ;; Basic operations

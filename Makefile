@@ -1,2 +1,2 @@
 clean:
-	rm *~ *.fasl
+	rm *~ *.fasl *.nfasl
