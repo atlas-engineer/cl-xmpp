@@ -33,7 +33,7 @@ Example:
 
 ;; If you wish to handle the incoming messages or other objects simply
 ;; specify an xmpp:handle method for the objects you are interested in
-;; or (defmethod xmpp:handle (object) ...)  to get them all.  Or alternatively 
+;; or (defmethod xmpp:handle (connection object) ...)  to get them all.  Or alternatively 
 ;; specify :dom-repr t to receive-stanza-loop to get DOM-ish objects.
 
 ;; For example, if you wanted to create an annoying reply bot:
