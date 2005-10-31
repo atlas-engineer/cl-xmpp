@@ -1,5 +1,5 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp.asd,v 1.2 2005/10/28 13:18:04 eenge Exp $
+;;;; $Id: cl-xmpp.asd,v 1.3 2005/10/28 21:04:12 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -17,7 +17,7 @@
     :version "0.0.1"
     :licence "MIT"
     :description "Common Lisp XMPP client implementation"
-    :depends-on (#+sbcl :sb-bsd-sockets :cxml)
+    :depends-on (#+sbcl :sb-bsd-sockets :cxml :ironclad)
     :components ((:file "package")
                  (:file "variable"
                         :depends-on ("package"))

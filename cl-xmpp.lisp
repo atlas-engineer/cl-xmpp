@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.5 2005/10/29 17:25:04 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.6 2005/10/31 17:02:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -17,6 +17,12 @@
    (server-xstream
     :accessor server-xstream
     :initform nil)
+   (stream-id
+    :accessor stream-id
+    :initarg :stream-id
+    :initform nil
+    :documentation "Stream ID attribute of the <stream>
+element as gotten when we call BEGIN-XML-STREAM.")
    (hostname
     :accessor hostname
     :initarg :hostname
@@ -92,17 +98,137 @@ input."
   #+(or allegro lispworks) (close (socket connection))
   connection)
 
+;;
+;; Handle
+;;
+
+(defmethod handle ((connection connection) (list list))
+  (dolist (object list)
+    (handle connection object)))
+
+(defmethod handle ((connection connection) object)
+  (format t "~&Received: ~a~%" object))
+
+;;
+;; Produce DOM-ish structure from the XML DOM returned by cxml.
+;;
+
+(defmethod parse-result ((connection connection) (objects list))
+  (dolist (object objects)
+    (parse-result connection object)))
+
+(defmethod parse-result ((connection connection) (document dom-impl::document))
+  (let (objects)
+    (dom:map-node-list #'(lambda (node)
+			   (push (parse-result connection node) objects))
+		       (dom:child-nodes document))
+    objects))
+
+(defmethod parse-result ((connection connection) (attribute dom-impl::attribute))
+  (let* ((name (dom:node-name attribute))
+	 (value (dom:value attribute))
+	 (xml-attribute
+	  (make-instance 'xml-attribute
+			 :name name :value value :node attribute)))
+    xml-attribute))
+
+(defmethod parse-result ((connection connection) (node dom-impl::character-data))
+  (let* ((name (dom:node-name node))
+	 (data (dom:data node))
+	 (xml-element (make-instance 'xml-element
+				     :name name :data data :node node)))
+    xml-element))
+
+(defmethod parse-result ((connection connection) (node dom-impl::node))
+  (let* ((name (intern (string-upcase (dom:node-name node)) :keyword))
+	 (xml-element (make-instance 'xml-element :name name :node node)))
+    (dom:do-node-list (attribute (dom:attributes node))
+      (push (parse-result connection attribute) (attributes xml-element)))
+    (dom:do-node-list (child (dom:child-nodes node))
+      (push (parse-result connection child) (elements xml-element)))
+    xml-element))
+
+
+(defmethod xml-element-to-event ((connection connection) (object xml-element) (name (eql :iq)))
+  (let ((id (intern (string-upcase (value (get-attribute object :id))) :keyword)))
+    (if (not (string-equal (value (get-attribute object :type)) "result"))
+	(make-error (get-element object :error))
+      (case id
+	(:error (make-error (get-element object :error)))
+	(:roster_1 (make-roster object))
+	(:reg2 :registration-successful)
+	(:unreg_1 :registration-cancellation-successful)
+	(:change1 :password-changed-succesfully)
+	(:auth2 :authentication-successful)
+	(t (cond
+	    ((member id '(info1 info2 info3))
+	     (make-disco-info (get-element object :query)))
+	    ((member id '(items1 items2 items3 items4))
+	     (make-disco-items (get-element object :query)))))))))
+
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :error)))
+  (make-error object))
+
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :stream\:error)))
+  (make-error object))
+
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :stream\:stream)))
+  (setf (stream-id connection) (value (get-attribute object :id)))
+  object)
+
+(defmethod xml-element-to-event ((connection connection) (object xml-element) name)
+  (declare (ignore name))
+  object)
+
+(defmethod dom-to-event ((connection connection) (objects list))
+  (let (list)
+    (dolist (object objects)
+      (push (dom-to-event connection object) list))
+    list))
+
+(defmethod dom-to-event ((connection connection) (object xml-element))
+  (xml-element-to-event
+   connection object (intern (string-upcase (name object)) :keyword)))
+
+;;; XXX: Is the ask attribute of the <presence/> element part of the RFC/JEP?
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :presence)))
+  (let ((show (get-element object :show)))
+    (when show
+      (setq show (data (get-element show :\#text))))
+    (make-instance 'presence
+                   :xml-element object
+		   :from (value (get-attribute object :from))
+		   :to (value (get-attribute object :to))
+		   :show show
+		   :type- (value (get-attribute object :type)))))
+
+;;; XXX: Add support for the <thread/> element.  Also note that
+;;; there may be an XHTML version of the body available in the
+;;; original node but as of right now I don't care about it.  If
+;;; you do please feel free to submit a patch.
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :message)))
+  (make-instance 'message
+                 :xml-element object
+		 :from (value (get-attribute object :from))
+		 :to (value (get-attribute object :to))
+		 :body (data (get-element (get-element object :body) :\#text))))
+
+;;
+;; Receive stanzas
+;;
+
 (defmethod receive-stanza-loop ((connection connection)	&key
                                 (stanza-callback 'default-stanza-callback)
-                                (init-callback 'default-init-callback)
                                 dom-repr)
   (loop
     (let* ((stanza (read-stanza connection))
            (tagname (dom:tag-name (dom:document-element stanza))))
       (cond
-        ((equal tagname "stream:stream")
-          (when init-callback
-            (funcall init-callback stanza connection :dom-repr dom-repr)))
         ((equal tagname "stream:error")
           (when stanza-callback
             (funcall stanza-callback stanza connection :dom-repr dom-repr))
@@ -221,11 +347,17 @@ the server again."
   (with-iq-query (connection :id "auth1" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))))
 
-;;; XXX: Add support for digest authentication.
-(defmethod auth ((connection connection) username password resource)
+(defmethod auth ((connection connection) username password resource &key digestp)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))
-   (cxml:with-element "password" (cxml:text password))
+   (if digestp
+       (if (stream-id connection)
+	   (cxml:with-element "digest" (cxml:text
+					(make-digest-password
+					 (stream-id connection)
+					 password)))
+	 (error "stream-id on ~a not set, cannot make digest password" connection))
+     (cxml:with-element "password" (cxml:text password)))
    (cxml:with-element "resource" (cxml:text resource))))
 
 (defmethod presence ((connection connection) &key type to)

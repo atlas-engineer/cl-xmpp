@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.5 2005/10/29 17:25:04 eenge Exp $
+;;;; $Id: result.lisp,v 1.6 2005/10/31 17:02:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -106,44 +106,6 @@ cl-xmpp-created data and access it that way instead.")
     (format stream "~a=~a" (name object) (value object))))
 
 ;;
-;; Produce DOM-ish structure from the XML DOM returned by cxml.
-;;
-
-(defmethod parse-result ((objects list))
-  (mapcar #'parse-result objects))
-
-(defmethod parse-result ((document dom-impl::document))
-  (let (objects)
-    (dom:map-node-list #'(lambda (node)
-			   (push (parse-result node) objects))
-		       (dom:child-nodes document))
-    objects))
-
-(defmethod parse-result ((attribute dom-impl::attribute))
-  (let* ((name (dom:node-name attribute))
-	 (value (dom:value attribute))
-	 (xml-attribute
-	  (make-instance 'xml-attribute
-			 :name name :value value :node attribute)))
-    xml-attribute))
-
-(defmethod parse-result ((node dom-impl::character-data))
-  (let* ((name (dom:node-name node))
-	 (data (dom:data node))
-	 (xml-element (make-instance 'xml-element
-				     :name name :data data :node node)))
-    xml-element))
-
-(defmethod parse-result ((node dom-impl::node))
-  (let* ((name (intern (string-upcase (dom:node-name node)) :keyword))
-	 (xml-element (make-instance 'xml-element :name name :node node)))
-    (dom:do-node-list (attribute (dom:attributes node))
-      (push (parse-result attribute) (attributes xml-element)))
-    (dom:do-node-list (child (dom:child-nodes node))
-      (push (parse-result child) (elements xml-element)))
-    xml-element))
-
-;;
 ;; Event interface
 ;;
 
@@ -172,17 +134,6 @@ cl-xmpp-created data and access it that way instead.")
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "to:~a from:~a" (to object) (from object))))
 
-;;; XXX: Add support for the <thread/> element.  Also note that
-;;; there may be an XHTML version of the body available in the
-;;; original node but as of right now I don't care about it.  If
-;;; you do please feel free to submit a patch.
-(defmethod xml-element-to-event ((object xml-element) (name (eql :message)))
-  (make-instance 'message
-                 :xml-element object
-		 :from (value (get-attribute object :from))
-		 :to (value (get-attribute object :to))
-		 :body (data (get-element (get-element object :body) :\#text))))
-
 (defclass presence (event)
   ((to
     :accessor to
@@ -205,18 +156,6 @@ cl-xmpp-created data and access it that way instead.")
   "Print the object for the Lisp reader."
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "from:~a show:~a" (from object) (show object))))
-
-;;; XXX: Is the ask attribute of the <presence/> element part of the RFC/JEP?
-(defmethod xml-element-to-event ((object xml-element) (name (eql :presence)))
-  (let ((show (get-element object :show)))
-    (when show
-      (setq show (data (get-element show :\#text))))
-    (make-instance 'presence
-                   :xml-element object
-		   :from (value (get-attribute object :from))
-		   :to (value (get-attribute object :to))
-		   :show show
-		   :type- (value (get-attribute object :type)))))
 
 (defclass contact ()
   ((jid
@@ -349,6 +288,11 @@ cl-xmpp-created data and access it that way instead.")
     :accessor name
     :initarg :name)))
 
+(defmethod print-object ((object xmpp-protocol-error) stream)
+  "Print the object for the Lisp reader."
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "code:~a name:~a" (code object) (name object))))
+
 (defclass xmpp-protocol-error-modify (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-cancel (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-wait (xmpp-protocol-error) ())
@@ -372,48 +316,3 @@ cl-xmpp-created data and access it that way instead.")
 	 (code (third data))
 	 (class (map-error-type-to-class type)))
     (make-instance class :code code :name name :xml-element object)))
-
-(defmethod xml-element-to-event ((object xml-element) (name (eql :iq)))
-  (let ((id (intern (string-upcase (value (get-attribute object :id))) :keyword)))
-    (if (not (string-equal (value (get-attribute object :type)) "result"))
-	(make-error (get-element object :error))
-      (case id
-	(:error (make-error (get-element object :error)))
-	(:roster_1 (make-roster object))
-	(:reg2 :registration-successful)
-	(:unreg_1 :registration-cancellation-successful)
-	(:change1 :password-changed-succesfully)
-	(:auth2 :authentication-successful)
-	(t (cond
-	    ((member id '(info1 info2 info3))
-	     (make-disco-info (get-element object :query)))
-	    ((member id '(items1 items2 items3 items4))
-	     (make-disco-items (get-element object :query)))))))))
-
-(defmethod xml-element-to-event ((object xml-element) (name (eql :error)))
-  (make-error object))
-
-(defmethod xml-element-to-event ((object xml-element) (name (eql :stream\:error)))
-  (make-error object))
-
-(defmethod xml-element-to-event ((object xml-element) name)
-  (declare (ignore name))
-  object)
-
-(defmethod dom-to-event ((object list))
-  (mapcar #'dom-to-event object))
-
-(defmethod dom-to-event ((object xml-element))
-  (xml-element-to-event
-   object (intern (string-upcase (name object)) :keyword)))
-
-;;
-;; Handle
-;;
-
-(defmethod handle ((connection connection) (object list))
-  (dolist (object list)
-    (handle connection object)))
-
-(defmethod handle ((connection connection) object)
-  (format t "~&Received: ~a~%" object))
