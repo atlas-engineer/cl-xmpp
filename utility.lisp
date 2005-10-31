@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
+;;;; $Id: utility.lisp,v 1.3 2005/10/29 03:58:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -18,18 +18,18 @@
       (setf (aref array position) (char-code (aref string position))))
     array))
 
-(defun default-stanza-callback (stanza &key dom-repr)
+(defun default-stanza-callback (stanza connection &key dom-repr)
   (let ((result (parse-result stanza)))
     (if dom-repr
-	(handle result)
-      (handle (dom-to-event result)))))
+	(handle connection result)
+      (handle connection (dom-to-event result)))))
 
 ;; um, refactor?
-(defun default-init-callback (stanza &key dom-repr)
+(defun default-init-callback (stanza connection &key dom-repr)
   (let ((result (parse-result stanza)))
     (if dom-repr
-	(handle result)
-      (handle (dom-to-event result)))))
+	(handle connection result)
+      (handle connection (dom-to-event result)))))
 
 (defmacro fmt (string &rest args)
   `(format nil ,string ,@args))

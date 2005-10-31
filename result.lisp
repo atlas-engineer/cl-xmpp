@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.4 2005/10/29 03:58:04 eenge Exp $
+;;;; $Id: result.lisp,v 1.5 2005/10/29 17:25:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -257,6 +257,10 @@ cl-xmpp-created data and access it that way instead.")
 	      (items roster))))
     roster))
 
+;;
+;; Discovery
+;;
+
 (defclass identity- (event)
   ((category
     :accessor category
@@ -275,8 +279,6 @@ cl-xmpp-created data and access it that way instead.")
                  :type- (value (get-attribute object :type-))
                  :name (value (get-attribute object :name))))
 
-;;; XXX: must think about this for another few days and then I will
-;;; decide how to represent the disco#info and disco#items data.
 (defclass disco (event)
   ((identities
     :accessor identities
@@ -371,46 +373,22 @@ cl-xmpp-created data and access it that way instead.")
 	 (class (map-error-type-to-class type)))
     (make-instance class :code code :name name :xml-element object)))
 
-;;; XXX: this is a mess with all the IFs... fix.
 (defmethod xml-element-to-event ((object xml-element) (name (eql :iq)))
   (let ((id (intern (string-upcase (value (get-attribute object :id))) :keyword)))
-    (case id
-      (:roster_1 (make-roster object))
-      (:reg2 (if (string-equal (value (get-attribute object :type)) "result")
-		 :registration-successful
-	       (make-error (get-element object :error))))
-      (:unreg_1 (if (string-equal (value (get-attribute object :type)) "result")
-		    :registration-cancellation-successful
-		  (make-error (get-element object :error))))
-      (:change1 (if (string-equal (value (get-attribute object :type)) "result")
-		    :password-changed-succesfully
-		  (make-error (get-element object :error))))
-      (:error (make-error (get-element object :error)))
-      (:auth2 (if (string-equal (value (get-attribute object :type)) "result")
-		    :authentication-successful
-		(make-error (get-element object :error))))
-      (:info1 (if (string-equal (value (get-attribute object :type)) "result")
-                  (make-disco-info (get-element object :query))
-		(make-error (get-element object :error))))
-      (:info2 (if (string-equal (value (get-attribute object :type)) "result")
-                  (make-disco-info (get-element object :query))
-		(make-error (get-element object :error))))
-      (:info3 (if (string-equal (value (get-attribute object :type)) "result")
-                  (make-disco-info (get-element object :query))
-		(make-error (get-element object :error))))
-      (:items1 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-disco-items (get-element object :query))
-                 (make-error (get-element object :error))))
-      (:items2 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-disco-items (get-element object :query))
-                 (make-error (get-element object :error))))
-      (:items3 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-disco-items (get-element object :query))
-                 (make-error (get-element object :error))))
-      (:items4 (if (string-equal (value (get-attribute object :type)) "result")
-                   (make-disco-items (get-element object :query))
-                 (make-error (get-element object :error))))
-      (t object))))
+    (if (not (string-equal (value (get-attribute object :type)) "result"))
+	(make-error (get-element object :error))
+      (case id
+	(:error (make-error (get-element object :error)))
+	(:roster_1 (make-roster object))
+	(:reg2 :registration-successful)
+	(:unreg_1 :registration-cancellation-successful)
+	(:change1 :password-changed-succesfully)
+	(:auth2 :authentication-successful)
+	(t (cond
+	    ((member id '(info1 info2 info3))
+	     (make-disco-info (get-element object :query)))
+	    ((member id '(items1 items2 items3 items4))
+	     (make-disco-items (get-element object :query)))))))))
 
 (defmethod xml-element-to-event ((object xml-element) (name (eql :error)))
   (make-error object))
@@ -433,8 +411,9 @@ cl-xmpp-created data and access it that way instead.")
 ;; Handle
 ;;
 
-(defmethod handle ((object list))
-  (mapc #'handle object))
+(defmethod handle ((connection connection) (object list))
+  (dolist (object list)
+    (handle connection object)))
 
-(defmethod handle (object)
+(defmethod handle ((connection connection) object)
   (format t "~&Received: ~a~%" object))

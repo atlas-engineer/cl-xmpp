@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.4 2005/10/29 03:58:04 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.5 2005/10/29 17:25:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -64,7 +64,8 @@ details are left to the programmer."))
                              :socket socket
                              :hostname hostname
                              :port port))
-  #+lispworks (let ((socket (comm:open-tcp-stream hostname port :element-type '(unsigned-byte 8))))
+  #+lispworks (let ((socket (comm:open-tcp-stream hostname port
+						  :element-type '(unsigned-byte 8))))
                 (make-instance 'connection
                                :server-stream socket
                                :socket socket
@@ -101,14 +102,14 @@ input."
       (cond
         ((equal tagname "stream:stream")
           (when init-callback
-            (funcall init-callback stanza :dom-repr dom-repr)))
+            (funcall init-callback stanza connection :dom-repr dom-repr)))
         ((equal tagname "stream:error")
           (when stanza-callback
-            (funcall stanza-callback stanza :dom-repr dom-repr))
+            (funcall stanza-callback stanza connection :dom-repr dom-repr))
           (error "Received error."))
         (t
           (when stanza-callback
-            (funcall stanza-callback stanza :dom-repr dom-repr)))))))
+            (funcall stanza-callback stanza connection :dom-repr dom-repr)))))))
 
 (defun read-stanza (connection)
   (unless (server-xstream connection)
@@ -245,8 +246,6 @@ the server again."
     (cxml:with-element "body" (cxml:text body))))
   connection)
 
-;;; XXX: this one doesn't seem to work with Jabberd 1.4
-;;; (not insinuating that I've tested it with anything else).
 (defmethod bind ((connection connection) jid resource)
   (with-iq (connection :id "bind_2" :type "set")
    (cxml:with-element "bind"
@@ -277,7 +276,7 @@ the server again."
 (defmethod get-roster ((connection connection))
   (with-iq-query (connection :id "roster_1" :xmlns "jabber:iq:roster")))
 
-;;; XXX: Adding and removing from the roster is not the same as
+;;; Note: Adding and removing from the roster is not the same as
 ;;; adding and removing subscriptions.  I have not yet decided
 ;;; if the library should provide convenience methods for doing
 ;;; both actions at once.
