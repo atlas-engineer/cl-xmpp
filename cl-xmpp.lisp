@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.6 2005/10/31 17:02:04 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.7 2005/10/31 21:07:15 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -63,7 +63,8 @@ details are left to the programmer."))
                           :socket socket
                           :hostname hostname
                           :port port))
-  #+allegro (let ((socket (socket:make-socket :remote-host hostname :remote-port port)))
+  #+(or allegro openmcl)
+  (let ((socket (socket:make-socket :remote-host hostname :remote-port port)))
               ;; fixme: (setf (sb-bsd-sockets:non-blocking-mode socket) t)
               (make-instance 'connection
                              :server-stream socket
@@ -95,7 +96,7 @@ input."
 (defmethod disconnect ((connection connection))
   "Disconnect TCP connection."
   #+sbcl (sb-bsd-sockets:socket-close (socket connection))
-  #+(or allegro lispworks) (close (socket connection))
+  #+(or allegro openmcl lispworks) (close (socket connection))
   connection)
 
 ;;

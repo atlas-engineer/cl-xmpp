@@ -1,4 +1,4 @@
-;;;; $Id: package.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
+;;;; $Id: package.lisp,v 1.3 2005/10/29 17:25:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -7,8 +7,9 @@
 
 (eval-when (:execute :load-toplevel :compile-toplevel)
   (defpackage :cl-xmpp
-      (:use :cl)
-    (:nicknames :xmpp)
+      (:use :cl
+	    #+allegro :socket
+	    #+openmcl :ccl)
     (:export
      ;; connection-related
      :connect :disconnect :socket :stream- :hostname :port :connectedp
