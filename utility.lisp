@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.4 2005/10/31 17:02:04 eenge Exp $
+;;;; $Id: utility.lisp,v 1.5 2005/10/31 21:07:15 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -21,26 +21,10 @@
       (setf (aref array position) (char-code (aref string position))))
     array))
 
-(defun hex-array-to-ascii-string (array)
-  (let ((string (make-string 0)))
-    (dotimes (position (length array))
-      (let ((element (aref array position))
-	    (*print-base* 16))
-	(setq string (fmt "~a~a" string element)))) ; probably inefficient
-    string))
-
-;;; borrowed from ironclad, so Copyright (C) 2004 Nathan Froyd
-(defun ascii-string-to-byte-array (string)
-  (let ((vec (make-array (length string) :element-type '(unsigned-byte 8))))
-    (dotimes (i (length string) vec)
-      (let ((byte (char-code (char string i))))
-        (assert (< byte 256))
-        (setf (aref vec i) byte)))))
-
 (defun digestify-string (string)
-  (hex-array-to-ascii-string
+  (ironclad:byte-array-to-hex-string
    (ironclad:digest-sequence
-    :sha1 (ascii-string-to-byte-array string))))
+    :sha1 (ironclad:ascii-string-to-byte-array string))))
 
 (defun make-digest-password (stream-id password)
   (string-downcase (digestify-string (fmt "~a~a" stream-id password))))
