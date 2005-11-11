@@ -5,13 +5,13 @@ Example:
 
   * (require :cl-xmpp)
 
-  * (defvar connection (xmpp:connect :hostname "jabber.org"))
+  * (defvar connection (xmpp:connect "username" :hostname "jabber.org"))
 
 ;; initiate XML stream with server
   * (xmpp:begin-xml-stream connection)
 
 ;; authenticate (or use xmpp:register to make an account)
-  * (xmpp:auth connection "username" "password" "resource")
+  * (xmpp:auth connection "password" "resource")
 
 ;; let the server know you want to receive/send presence information
 ;; (this makes you "come online" if others have a subscription with you

@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.8 2005/11/03 20:55:10 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.9 2005/11/11 17:21:56 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -58,15 +58,14 @@ details are left to the programmer."))
 	(format stream " (open)")
       (format stream " (closed)"))))
 
-;;; XXX: "not-a-pathname"?  Need it because CXML wants to call
-;;; pathname on the stream and without one it returns NIL which
-;;; CXML breaks on.
-(defun connect (&key (hostname *default-hostname*) (port *default-port*))
+(defun connect (username &key (hostname *default-hostname*) (port *default-port*))
   "Open TCP connection to hostname."
   (let ((stream (trivial-sockets:open-stream
 		 hostname port :element-type '(unsigned-byte 8))))
-    (make-instance 'connection :server-stream stream
-		   :hostname hostname :port port)))
+    (make-instance 'connection
+		   :server-stream stream
+		   :hostname hostname
+		   :port port)))
 
 (defmethod connectedp ((connection connection))
   "Returns t if `connection' is connected to a server and is ready for
@@ -79,6 +78,36 @@ input."
   "Disconnect TCP connection."
   (close (server-stream connection))
   connection)
+
+(defmethod feature-p ((connection connection) feature-name)
+  "See if connection has a specific feature.
+
+Eg. (has-feature *my-connection* :starttls)
+
+Returns the xml-element representing the feature if it
+is present, nil otherwise."
+  (dolist (feature (features connection))
+    (when (eq (name feature) feature-name)
+      (return-from feature-p feature))))
+
+(defmethod feature-required-p ((connection connection) feature-name)
+  "Checks if feature is required.  Three possible outcomes
+
+t - feature is supported and required
+nil - feature is support but not required
+:not-supported - feature is not supported"
+  (let ((feature (feature-p connection feature-name)))
+    (if feature
+	(if (get-element feature :required)
+	    t
+	  nil)
+      :not-supported)))
+
+(defmethod mechanism-p ((connection connection) mechanism-name)
+  (dolist (mechanism (mechanisms connection))
+    (let ((name (intern (data (get-element mechanism :\#text)) :keyword)))
+      (when (eq name mechanism-name)
+	(return-from mechanism-p mechanism)))))
 
 ;;
 ;; Handle
@@ -215,17 +244,24 @@ input."
 on-the-go.  As soon as it has a complete element it calls
 the stanza-callback (which by default eventually dispatches
 to HANDLE)."
-  (loop
-    (let* ((stanza (read-stanza connection))
-           (tagname (dom:tag-name (dom:document-element stanza))))
-      (cond
-        ((equal tagname "stream:error")
-          (when stanza-callback
-            (funcall stanza-callback stanza connection :dom-repr dom-repr))
-          (error "Received error."))
-        (t
-          (when stanza-callback
-            (funcall stanza-callback stanza connection :dom-repr dom-repr)))))))
+  (loop (receive-stanza connection
+			:stanza-callback stanza-callback
+			:dom-repr dom-repr)))
+
+(defmethod receive-stanza ((connection connection) &key
+			   (stanza-callback 'default-stanza-callback)
+			   dom-repr)
+  "Returns one stanza.  Hangs until one is received."
+  (let* ((stanza (read-stanza connection))
+	 (tagname (dom:tag-name (dom:document-element stanza))))
+    (cond
+     ((equal tagname "stream:error")
+      (when stanza-callback
+	(car (funcall stanza-callback stanza connection :dom-repr dom-repr)))
+      (error "Received error."))
+     (t
+      (when stanza-callback
+	(car (funcall stanza-callback stanza connection :dom-repr dom-repr)))))))
 
 (defun read-stanza (connection)
   (unless (server-xstream connection)
@@ -246,7 +282,9 @@ to HANDLE)."
 to the debug stream.  It's not strictly /with/ xml-stream
 so it should probably be renamed."
   `(let ((,stream (server-stream ,connection)))
-     ,@body))
+     (progn
+       ,@body
+       ,connection)))
 
 (defun xml-output (stream string)
   "Write string to stream as a sequence of bytes and not characters."
@@ -256,24 +294,31 @@ so it should probably be renamed."
     (when *debug-stream*
       (write-string string *debug-stream*))))
 
-(defmethod begin-xml-stream ((connection connection))
-  "Begin XML stream.  This should be the first thing to
-happen on a newly connected connection."
+;;
+;; Operators for communicating over the XML stream
+;;
+
+(defmethod begin-xml-stream ((connection connection) &optional jid-domain-part)
+  "Begin XML stream.  This should be the first thing to happen on a
+newly connected connection.
+
+Some XMPP server's addresses are not the same as the domain part of
+the JID (eg. talk.google.com vs gmail.com) so we provide the option of
+passing that in here.  Could perhaps be taken care of by the library
+but I'm trying not to optimize too early."
   (with-xml-stream (stream connection)
    (xml-output stream "<?xml version='1.0'?>")
    (xml-output stream (fmt "<stream:stream to='~a'
 xmlns='jabber:client'
 xmlns:stream='http://etherx.jabber.org/streams'
-version='1.0'>" (hostname connection))))
-  connection)
+version='1.0'>" (or jid-domain-part (hostname connection))))))
 
 (defmethod end-xml-stream ((connection connection))
   "Closes the XML stream.  At this point you'd have to
 call BEGIN-XML-STREAM if you wished to communicate with
 the server again."
   (with-xml-stream (stream connection)
-   (xml-output stream "</stream:stream>"))
-  connection)
+   (xml-output stream "</stream:stream>")))
 
 (defmacro with-iq ((connection &key id to (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
@@ -305,10 +350,11 @@ the server again."
 ;;
 
 (defmethod discover ((connection connection) &key (type :info) to node)
-  (let ((xmlns (case type
-                 (:info "http://jabber.org/protocol/disco#info")
-                 (:items "http://jabber.org/protocol/disco#items")
-                 (t (error "Unknown type: ~a (Please choose between :info and :items)" type)))))
+  (let ((xmlns
+	 (case type
+	   (:info "http://jabber.org/protocol/disco#info")
+	   (:items "http://jabber.org/protocol/disco#items")
+	   (t (error "Unknown type: ~a (Please choose between :info and :items)" type)))))
     (with-iq-query (connection :id "info1" :xmlns xmlns :to to :node node))))
   
 ;;
@@ -340,19 +386,29 @@ the server again."
   (with-iq-query (connection :id "auth1" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))))
 
-(defmethod auth ((connection connection) username password resource &key digestp)
+(defmethod auth ((connection connection) username password
+		 resource &key (mechanism :plain))
   (setf (username connection) username)
+  (funcall (get-auth-method mechanism) connection username password resource))
+
+(defmethod %plain-auth% ((connection connection) username password resource)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))
-   (if digestp
-       (if (stream-id connection)
-	   (cxml:with-element "digest" (cxml:text
-					(make-digest-password
-					 (stream-id connection)
-					 password)))
-	 (error "stream-id on ~a not set, cannot make digest password" connection))
-     (cxml:with-element "password" (cxml:text password)))
+   (cxml:with-element "password" (cxml:text password))
    (cxml:with-element "resource" (cxml:text resource))))
+
+(add-auth-method :plain #'%plain-auth%)
+
+(defmethod %digest-md5-auth% ((connection connection) username password resource)
+  (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
+   (cxml:with-element "username" (cxml:text username))
+   (if (stream-id connection)
+       (cxml:with-element "digest"
+	(cxml:text (make-digest-password (stream-id connection) password)))
+     (error "stream-id on ~a not set, cannot make digest password" connection))
+   (cxml:with-element "resource" (cxml:text resource))))
+
+(add-auth-method :digest-md5 #'%digest-md5-auth%)
 
 (defmethod presence ((connection connection) &key type to)
   (cxml:with-xml-output (make-octet+character-debug-stream-sink

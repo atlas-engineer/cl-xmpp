@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.5 2005/10/31 21:07:15 eenge Exp $
+;;;; $Id: utility.lisp,v 1.6 2005/11/10 20:41:28 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -35,4 +35,15 @@
 	(handle connection result)
       (handle connection (dom-to-event connection result)))))
 
+(defun list-auth-method-names ()
+  (mapcar #'car *auth-methods*))
 
+(defun get-auth-method (name)
+  (let ((auth-method (second (assoc name *auth-methods*))))
+    (if auth-method
+	(return-from get-auth-method auth-method)
+      (error "Unknown mechanism name: ~s.  Please choose between: ~s."
+	     name (list-auth-method-names)))))
+
+(defun add-auth-method (name operator)
+  (push (list name operator) *auth-methods*))

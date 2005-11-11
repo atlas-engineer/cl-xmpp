@@ -1,4 +1,4 @@
-;;;; $Id: variable.lisp,v 1.2 2005/10/28 21:04:12 eenge Exp $
+;;;; $Id: variable.lisp,v 1.3 2005/11/11 17:21:56 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/variable.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -35,3 +35,9 @@
     (:undefined-condition :any 500)
     (:unexpected-request :wait 400)))
 
+(defvar *auth-methods* nil
+  "Alist of method name to operator.
+
+Operators must accept the following operands:
+
+   connection username password resource")
