@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.1 2005/11/11 17:21:56 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.2 2005/11/11 21:20:20 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -26,6 +26,7 @@
 					   :authentication-id username
 					   :password password
 					   :service "xmpp"
+					   :realm (hostname connection)
 					   :host (hostname connection)))
 	       (response (sasl:client-step sasl-client challenge-string))
 	       (base64-response (base64:string-to-base64-string response)))
