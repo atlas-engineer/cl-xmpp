@@ -1,4 +1,4 @@
-;;;; $Id: package.lisp,v 1.4 2005/11/03 20:55:11 eenge Exp $
+;;;; $Id: package.lisp,v 1.5 2005/11/07 19:15:51 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -13,9 +13,9 @@
       (:nicknames :xmpp)
     (:export
      ;; connection-related
-     :connect :disconnect :socket :stream- :hostname :port :connectedp
+     :connect :disconnect :stream- :hostname :port :connectedp
      :receive-stanza-loop :begin-xml-stream :end-xml-stream :with-iq
-     :with-iq-query :connection
+     :with-iq-query :connection :username :mechanisms :features
      ;; xmpp commands
      :discover
      :registration-requirements :register

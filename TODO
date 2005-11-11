@@ -2,6 +2,5 @@
 
 - sasl/tls
 
-- also, i'm interning things which will screw up lisps with up/down
+- also, i'm interning things which may screw up lisps with up/down
   case different.
-

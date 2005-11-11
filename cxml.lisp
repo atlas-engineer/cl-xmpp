@@ -1,5 +1,4 @@
 ;;;; cxml-stanza.lisp -- parser helper for RFC 3920 XML streams
-;;;; Copyright (c) 2004 David Lichteblau, BSD-style license
 
 ;;; These are modifications to CXML which helps us deal with the
 ;;; incremental-style parsing required for the XML stanzas.
@@ -72,3 +71,82 @@
 (defun cxml::set-full-speed (input)
   (declare (ignore input))
   nil)
+
+;; To facilitate writing to both an octet and a character stream
+;; using CXML.
+
+(defclass octet+character-debug-stream-sink (cxml::octet-stream-sink)
+ ((target-stream
+   :accessor target-stream
+   :initarg :target-stream)))
+
+(defun make-octet+character-debug-stream-sink (octet-stream &rest initargs)
+ (apply #'make-instance 'octet+character-debug-stream-sink
+        :target-stream octet-stream
+        initargs))
+
+(defmethod cxml::write-octet (octet (sink octet+character-debug-stream-sink))
+ (write-byte octet (target-stream sink))
+ (when *debug-stream*
+   (write-char (code-char octet) *debug-stream*)))
+
+;; I'd like to see what CXML is reading from the stream
+;; and this code helps us in that regard by printing it
+;; to the *debug-stream*
+
+(defun runes::write-xstream-buffer (xstream &optional (stream *debug-stream*))
+  (when stream
+    (write-string (map 'string
+		       #'code-char
+		       (remove runes::+end+
+			       (subseq (runes::xstream-buffer xstream) 0
+				       (runes::xstream-read-ptr xstream))))
+		  stream)
+    (force-output stream)))
+
+(defun runes::xstream-underflow (input)
+  (declare (type runes::xstream input))
+  ;; we are about to fill new data into the buffer, so we need to
+  ;; adjust buffer-start.
+  (runes::write-xstream-buffer input)
+  (incf (runes::xstream-buffer-start input)
+	(- (runes::xstream-fill-ptr input) 0))
+  (let (n m)
+    ;; when there is something left in the os-buffer, we move it to
+    ;; the start of the buffer.
+    (setf m (- (runes::xstream-os-left-end input) (runes::xstream-os-left-start input)))
+    (unless (zerop m)
+      (replace (runes::xstream-os-buffer input) (runes::xstream-os-buffer input)
+               :start1 0 :end1 m
+               :start2 (runes::xstream-os-left-start input)
+               :end2 (runes::xstream-os-left-end input))
+      ;; then we take care that the buffer is large enough to carry at
+      ;; least 100 bytes (a random number)
+      (unless (>= (length (runes::xstream-os-buffer input)) 100)
+        (error "You lost")
+        ;; todo: enlarge buffer
+        ))
+    (setf n
+      (runes::read-octets (runes::xstream-os-buffer input) (runes::xstream-os-stream input)
+			 m (min (1- (length (runes::xstream-os-buffer input)))
+				(+ m (runes::xstream-speed input)))))
+    (cond ((runes::%= n 0)
+           (setf (runes::xstream-read-ptr input) 0
+                 (runes::xstream-fill-ptr input) n)
+           (setf (aref (runes::xstream-buffer input)
+		       (runes::xstream-fill-ptr input)) runes::+end+)
+           :eof)
+          (t
+           (multiple-value-bind (fnw fnr) 
+               (encoding:decode-sequence
+                (runes::xstream-encoding input) 
+                (runes::xstream-os-buffer input) 0 n
+                (runes::xstream-buffer input) 0 (1- (length (runes::xstream-buffer input)))
+                (= n m))
+             (setf (runes::xstream-os-left-start input) fnr
+                   (runes::xstream-os-left-end input) n
+                   (runes::xstream-read-ptr input) 0
+                   (runes::xstream-fill-ptr input) fnw)
+             (setf (aref (runes::xstream-buffer input)
+			 (runes::xstream-fill-ptr input)) runes::+end+)
+             (runes:read-rune input))))))

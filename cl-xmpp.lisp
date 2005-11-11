@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.7 2005/10/31 21:07:15 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.8 2005/11/03 20:55:10 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -10,10 +10,6 @@
     :accessor server-stream
     :initarg :server-stream
     :initform nil)
-   (socket
-    :accessor socket
-    :initarg :socket
-    :initform nil)
    (server-xstream
     :accessor server-xstream
     :initform nil)
@@ -23,6 +19,23 @@
     :initform nil
     :documentation "Stream ID attribute of the <stream>
 element as gotten when we call BEGIN-XML-STREAM.")
+   (features
+    :accessor features
+    :initarg :features
+    :initform nil
+    :documentation "List of xml-element objects representing
+the various features the host at the other end of the connection
+supports.")
+   (mechanisms
+    :accessor mechanisms
+    :initarg :mechanisms
+    :initform nil
+    :documentation "List of xml-element objects representing
+the various mechainsms the host at the other end of the connection
+will accept.")
+   (username
+    :accessor username
+    :initarg :username)
    (hostname
     :accessor hostname
     :initarg :hostname
@@ -50,41 +63,10 @@ details are left to the programmer."))
 ;;; CXML breaks on.
 (defun connect (&key (hostname *default-hostname*) (port *default-port*))
   "Open TCP connection to hostname."
-  #+sbcl (let ((socket (sb-bsd-sockets:make-inet-socket :stream :tcp))
-               (ip-address (car (sb-bsd-sockets:host-ent-addresses
-                                 (sb-bsd-sockets:get-host-by-name hostname)))))
-           (sb-bsd-sockets:socket-connect socket ip-address port)
-           (setf (sb-bsd-sockets:non-blocking-mode socket) t)
-           (make-instance 'connection
-                          :server-stream (sb-bsd-sockets:socket-make-stream
-                                          socket :input t :output t :buffering :none
-                                          :element-type '(unsigned-byte 8)
-                                          :pathname #p"/tmp/not-a-pathname")
-                          :socket socket
-                          :hostname hostname
-                          :port port))
-  #+(or allegro openmcl)
-  (let ((socket (socket:make-socket :remote-host hostname :remote-port port)))
-              ;; fixme: (setf (sb-bsd-sockets:non-blocking-mode socket) t)
-              (make-instance 'connection
-                             :server-stream socket
-                             :socket socket
-                             :hostname hostname
-                             :port port))
-  #+lispworks (let ((socket (comm:open-tcp-stream hostname port
-						  :element-type '(unsigned-byte 8))))
-                (make-instance 'connection
-                               :server-stream socket
-                               :socket socket
-                               :hostname hostname
-                               :port port)))
-
-(defmethod make-connection-and-debug-stream ((connection connection))
-  "Helper function to make a broadcast stream for this connection's
-server-stream and the *debug-stream*."
-  ;;; Hook onto this if you want the output written by CXML to be
-  ;;; sent to one of your streams for debugging or whatever.
-  (server-stream connection))
+  (let ((stream (trivial-sockets:open-stream
+		 hostname port :element-type '(unsigned-byte 8))))
+    (make-instance 'connection :server-stream stream
+		   :hostname hostname :port port)))
 
 (defmethod connectedp ((connection connection))
   "Returns t if `connection' is connected to a server and is ready for
@@ -95,8 +77,7 @@ input."
 
 (defmethod disconnect ((connection connection))
   "Disconnect TCP connection."
-  #+sbcl (sb-bsd-sockets:socket-close (socket connection))
-  #+(or allegro openmcl lispworks) (close (socket connection))
+  (close (server-stream connection))
   connection)
 
 ;;
@@ -104,19 +85,18 @@ input."
 ;;
 
 (defmethod handle ((connection connection) (list list))
-  (dolist (object list)
-    (handle connection object)))
+  (map 'list #'(lambda (x) (handle connection x)) list))
 
 (defmethod handle ((connection connection) object)
-  (format t "~&Received: ~a~%" object))
+  (format t "~&UNHANDLED: ~a~%" object)
+  object)
 
 ;;
 ;; Produce DOM-ish structure from the XML DOM returned by cxml.
 ;;
 
 (defmethod parse-result ((connection connection) (objects list))
-  (dolist (object objects)
-    (parse-result connection object)))
+  (map 'list #'(lambda (x) (parse-result connection x)) objects))
 
 (defmethod parse-result ((connection connection) (document dom-impl::document))
   (let (objects)
@@ -180,15 +160,20 @@ input."
   (setf (stream-id connection) (value (get-attribute object :id)))
   object)
 
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :stream\:features)))
+  (dolist (element (elements object))
+    (if (eq (name element) :mechanisms)
+	(setf (mechanisms connection) (elements element))
+      (push element (features connection))))
+  object)
+
 (defmethod xml-element-to-event ((connection connection) (object xml-element) name)
   (declare (ignore name))
   object)
 
 (defmethod dom-to-event ((connection connection) (objects list))
-  (let (list)
-    (dolist (object objects)
-      (push (dom-to-event connection object) list))
-    list))
+  (map 'list #'(lambda (x) (dom-to-event connection x)) objects))
 
 (defmethod dom-to-event ((connection connection) (object xml-element))
   (xml-element-to-event
@@ -226,6 +211,10 @@ input."
 (defmethod receive-stanza-loop ((connection connection)	&key
                                 (stanza-callback 'default-stanza-callback)
                                 dom-repr)
+  "Reads from connection's stream and parses the XML received
+on-the-go.  As soon as it has a complete element it calls
+the stanza-callback (which by default eventually dispatches
+to HANDLE)."
   (loop
     (let* ((stanza (read-stanza connection))
            (tagname (dom:tag-name (dom:document-element stanza))))
@@ -249,21 +238,23 @@ input."
                   "http://etherx.jabber.org/streams"
                   cxml::*default-namespace-bindings*)))
       (cxml::parse-xstream (server-xstream connection)
-                           (make-instance 'stanza-handler)))))
-
+                           (make-instance 'stanza-handler))
+      (runes::write-xstream-buffer (server-xstream connection)))))
+ 
 (defmacro with-xml-stream ((stream connection) &body body)
   "Helper macro to make it easy to control outputting XML
 to the debug stream.  It's not strictly /with/ xml-stream
 so it should probably be renamed."
-  `(let ((,stream (make-connection-and-debug-stream ,connection)))
+  `(let ((,stream (server-stream ,connection)))
      ,@body))
 
 (defun xml-output (stream string)
-  "Write string to stream as a sequence of bytes and not
-characters."
-  (write-sequence (string-to-array string) stream)
-  (finish-output stream)
-  string)
+  "Write string to stream as a sequence of bytes and not characters."
+  (let ((sequence (string-to-array string :element-type '(unsigned-byte 8))))
+    (write-sequence sequence stream)
+    (finish-output stream)
+    (when *debug-stream*
+      (write-string string *debug-stream*))))
 
 (defmethod begin-xml-stream ((connection connection))
   "Begin XML stream.  This should be the first thing to
@@ -273,27 +264,29 @@ happen on a newly connected connection."
    (xml-output stream (fmt "<stream:stream to='~a'
 xmlns='jabber:client'
 xmlns:stream='http://etherx.jabber.org/streams'
-version='1.0'>" (hostname connection)))))
+version='1.0'>" (hostname connection))))
+  connection)
 
 (defmethod end-xml-stream ((connection connection))
   "Closes the XML stream.  At this point you'd have to
 call BEGIN-XML-STREAM if you wished to communicate with
 the server again."
   (with-xml-stream (stream connection)
-   (xml-output stream "</stream:stream>")))
+   (xml-output stream "</stream:stream>"))
+  connection)
 
 (defmacro with-iq ((connection &key id to (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
   (let ((stream (gensym)))
-    `(let ((,stream (make-connection-and-debug-stream ,connection)))
-       (cxml:with-xml-output (cxml:make-octet-stream-sink ,stream)
+    `(let ((,stream (server-stream ,connection)))
+       (cxml:with-xml-output (make-octet+character-debug-stream-sink ,stream)
          (cxml:with-element "iq"
            (cxml:attribute "id" ,id)
            (when ,to
              (cxml:attribute "to" ,to))
            (cxml:attribute "type" ,type)
            ,@body))
-       (finish-output ,stream)
+       (force-output ,stream)
        ,connection)))
 
 (defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
@@ -336,11 +329,10 @@ the server again."
   (with-iq-query (connection :id "unreg1" :type "set" :xmlns "jabber:iq:register")
    (cxml:with-element "remove")))
 
-;;; XXX: connection should know about username?
-(defmethod change-password ((connection connection) username new-password)
+(defmethod change-password ((connection connection) new-password)
   (with-iq-query (connection :id "change1" :type "set" :xmlns "jabber:iq:register")
    (cxml:with-element "username"
-    (cxml:text username))
+    (cxml:text (username connection)))
    (cxml:with-element "password"
     (cxml:text new-password))))
 
@@ -349,6 +341,7 @@ the server again."
    (cxml:with-element "username" (cxml:text username))))
 
 (defmethod auth ((connection connection) username password resource &key digestp)
+  (setf (username connection) username)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))
    (if digestp
@@ -362,8 +355,8 @@ the server again."
    (cxml:with-element "resource" (cxml:text resource))))
 
 (defmethod presence ((connection connection) &key type to)
-  (cxml:with-xml-output (cxml:make-octet-stream-sink
-			 (make-connection-and-debug-stream connection))
+  (cxml:with-xml-output (make-octet+character-debug-stream-sink
+			 (server-stream connection))
    (cxml:with-element "presence"
     (when type
       (cxml:attribute "type" type))
@@ -372,8 +365,8 @@ the server again."
   connection)
    
 (defmethod message ((connection connection) to body)
-  (cxml:with-xml-output (cxml:make-octet-stream-sink
-			 (make-connection-and-debug-stream connection))
+  (cxml:with-xml-output (make-octet+character-debug-stream-sink
+			 (server-stream connection))
    (cxml:with-element "message"
     (cxml:attribute "to" to)
     (cxml:with-element "body" (cxml:text body))))
