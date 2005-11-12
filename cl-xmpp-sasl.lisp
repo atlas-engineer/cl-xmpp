@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.3 2005/11/11 22:31:38 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.4 2005/11/12 02:29:51 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -32,7 +32,7 @@ stanza received from the server."
 					   :service "xmpp"
 					   :realm (hostname connection)
 					   :host (hostname connection)))
-	       (response (sasl:client-step sasl-client challenge-string))
+	       (response (sasl:client-step sasl-client (ironclad:ascii-string-to-byte-array challenge-string)))
 	       (base64-response (base64:string-to-base64-string response)))
 	  (format *debug-stream* "~&challenge-string: ~a~%" challenge-string)
 	  (format *debug-stream* "response: ~a~%" response)

@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.10 2005/11/11 21:20:20 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.11 2005/11/12 02:29:51 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -119,7 +119,7 @@ nil - feature is support but not required
   (map 'list #'(lambda (x) (handle connection x)) list))
 
 (defmethod handle ((connection connection) object)
-  (format t "~&UNHANDLED: ~a~%" object)
+  (format *debug-stream* "~&UNHANDLED: ~a~%" object)
   object)
 
 ;;
@@ -389,7 +389,7 @@ the server again."
    (cxml:with-element "username" (cxml:text username))))
 
 (defmethod auth ((connection connection) username password
-		 resource &key (mechanism :plain))
+		 resource &optional (mechanism :plain))
   (setf (username connection) username)
   (funcall (get-auth-method mechanism) connection username password resource))
 
