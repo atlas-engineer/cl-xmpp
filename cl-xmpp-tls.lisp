@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-tls.lisp,v 1.1 2005/11/11 17:21:56 eenge Exp $
+;;;; $Id: cl-xmpp-tls.lisp,v 1.2 2005/11/12 04:20:21 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-tls.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -9,7 +9,7 @@
   "Connect to the host and start a TLS stream."
   (let ((connection (apply #'connect args)))
     (send-starttls connection)
-    (begin-tls-stream connection)
+    (convert-to-tls-stream connection)
     connection))
 
 (defmethod send-starttls ((connection connection))
