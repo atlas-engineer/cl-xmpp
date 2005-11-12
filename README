@@ -6,6 +6,10 @@ Example:
   * (require :cl-xmpp)
 
   * (defvar connection (xmpp:connect "username" :hostname "jabber.org"))
+;; or use xmpp:connect-tls with the exact same arguments to initiate
+;; a TLS connection.  there are operators in cl-xmpp-tls.lisp you
+;; can use manually if you want to check that this host supports
+;; TLS connections, first.
 
 ;; authenticate (or use xmpp:register to make an account)
   * (xmpp:auth connection "password" "resource")
