@@ -7,9 +7,6 @@ Example:
 
   * (defvar connection (xmpp:connect "username" :hostname "jabber.org"))
 
-;; initiate XML stream with server
-  * (xmpp:begin-xml-stream connection)
-
 ;; authenticate (or use xmpp:register to make an account)
   * (xmpp:auth connection "password" "resource")
 

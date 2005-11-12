@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.9 2005/11/11 17:21:56 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.10 2005/11/11 21:20:20 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -58,14 +58,16 @@ details are left to the programmer."))
 	(format stream " (open)")
       (format stream " (closed)"))))
 
-(defun connect (username &key (hostname *default-hostname*) (port *default-port*))
+(defun connect (&key (hostname *default-hostname*) (port *default-port*))
   "Open TCP connection to hostname."
-  (let ((stream (trivial-sockets:open-stream
-		 hostname port :element-type '(unsigned-byte 8))))
-    (make-instance 'connection
-		   :server-stream stream
-		   :hostname hostname
-		   :port port)))
+  (let* ((stream (trivial-sockets:open-stream
+                  hostname port :element-type '(unsigned-byte 8)))
+         (connection (make-instance 'connection
+                                    :server-stream stream
+                                    :hostname hostname
+                                    :port port)))
+    (begin-xml-stream connection)
+    connection))
 
 (defmethod connectedp ((connection connection))
   "Returns t if `connection' is connected to a server and is ready for

@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.2 2005/11/11 21:20:20 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.3 2005/11/11 22:31:38 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -17,6 +17,10 @@
 (add-auth-method :sasl-digest-md5 #'%sasl-digest-md5%)
 
 (defmethod handle-challenge-response ((connection connection) username password mechanism)
+  "Helper method to the sasl authentication methods.  Goes through the
+entire SASL challenge/response chain.  Returns two values, the first
+is a keyword symbol (:success or :failure) and the second is the last
+stanza received from the server."
   (initiate-sasl-authentication connection mechanism)
   (let ((initial-challenge (receive-stanza connection)))
     (if (eq (name initial-challenge) :challenge)
@@ -33,17 +37,18 @@
 	  (format *debug-stream* "~&challenge-string: ~a~%" challenge-string)
 	  (format *debug-stream* "response: ~a~%" response)
 	  (if (eq response :failure)
-	      (error "SASL failure: ~a." challenge-string)
+              (values :failure initial-challenge)
 	    (progn
 	      (send-challenge-response connection base64-response)
 	      (let ((second-challenge (receive-stanza connection)))
 		(if (eq (name second-challenge) :challenge)
 		    (progn
 		      (send-second-response connection)
-		      ; This should return either :success or :failure.
-		      (name (receive-stanza connection)))
-		  (error "Expected second challenge, got: ~a." second-challenge))))))
-      (error "Expected initial challenge, got: ~a." initial-challenge))))
+                      (let ((final-reply (receive-stanza connection)))
+		        ; This should return either :success or :failure.
+                        (values (name final-reply) final-reply)))
+                  (values :failure second-challenge))))))
+      (values :failure initial-challenge))))
 
 (defmethod initiate-sasl-authentication ((connection connection) mechanism)
   (with-xml-stream (stream connection)
