@@ -1,8 +1,10 @@
 - respect stringprep/nodeprep  -  jid validator
 
-- sasl/tls
-
 - also, i'm interning things which may screw up lisps with up/down
   case different.
 
 - i hate that xmlns's are as strings and never validated
+
+- create a connect-test which makes a "fake" connection but
+  still writes into a stream.  prerequisite for writing a test
+  suite (which i should do).
