@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.4 2005/11/12 02:29:51 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.5 2005/11/12 02:37:29 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -21,39 +21,43 @@
 entire SASL challenge/response chain.  Returns two values, the first
 is a keyword symbol (:success or :failure) and the second is the last
 stanza received from the server."
-  (initiate-sasl-authentication connection mechanism)
-  (let ((initial-challenge (receive-stanza connection)))
-    (if (eq (name initial-challenge) :challenge)
-	(let* ((challenge-string (base64:base64-string-to-string
-				  (data (get-element initial-challenge :\#text))))
-	       (sasl-client (make-instance (sasl:get-mechanism mechanism)
-					   :authentication-id username
-					   :password password
-					   :service "xmpp"
-					   :realm (hostname connection)
-					   :host (hostname connection)))
-	       (response (sasl:client-step sasl-client (ironclad:ascii-string-to-byte-array challenge-string)))
-	       (base64-response (base64:string-to-base64-string response)))
-	  (format *debug-stream* "~&challenge-string: ~a~%" challenge-string)
-	  (format *debug-stream* "response: ~a~%" response)
-	  (if (eq response :failure)
-              (values :failure initial-challenge)
-	    (progn
-	      (send-challenge-response connection base64-response)
-	      (let ((second-challenge (receive-stanza connection)))
-		(if (eq (name second-challenge) :challenge)
-		    (progn
-		      (send-second-response connection)
-                      (let ((final-reply (receive-stanza connection)))
-		        ; This should return either :success or :failure.
-                        (values (name final-reply) final-reply)))
-                  (values :failure second-challenge))))))
-      (values :failure initial-challenge))))
+  (let ((sasl-client (make-instance (sasl:get-mechanism mechanism)
+                                    :authentication-id username
+                                    :password password
+                                    :service "xmpp"
+                                    :host (hostname connection))))
+    (initiate-sasl-authentication connection mechanism sasl-client)
+    (let ((initial-challenge (receive-stanza connection)))
+      (if (eq (name initial-challenge) :challenge)
+          (let* ((challenge-string (base64:base64-string-to-string
+                                    (data (get-element initial-challenge :\#text))))
+                 (usb8-response (sasl:client-step 
+                                 sasl-client 
+                                 (ironclad:ascii-string-to-byte-array challenge-string))))
+            (format *debug-stream* "~&challenge-string: ~a~%" challenge-string)
+            (if (eq usb8-response :failure)
+                (values :failure initial-challenge)
+              (let ((base64-response (base64:usb8-array-to-base64-string usb8-response)))
+                (format *debug-stream* "response: ~a~%" (map 'string #'code-char usb8-response))
+                (force-output *debug-stream*)
+                (send-challenge-response connection base64-response)
+                (let ((second-challenge (receive-stanza connection)))
+                  (if (eq (name second-challenge) :challenge)
+                      (progn
+                        (send-second-response connection)
+                        (let ((final-reply (receive-stanza connection)))
+		          ; This should return either :success or :failure.
+                          (values (name final-reply) final-reply)))
+                    (values :failure second-challenge))))))
+        (values :failure initial-challenge)))))
 
-(defmethod initiate-sasl-authentication ((connection connection) mechanism)
+(defmethod initiate-sasl-authentication ((connection connection) mechanism sasl-client)
   (with-xml-stream (stream connection)
    (xml-output stream (fmt "<auth mechanism='~a'
-xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>" mechanism))))
+xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>~a</auth>" 
+                           mechanism
+                           (base64:usb8-array-to-base64-string
+                            (sasl:client-step sasl-client nil))))))
 
 (defmethod send-challenge-response ((connection connection) response)
   (with-xml-stream (stream connection)

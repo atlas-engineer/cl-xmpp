@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.11 2005/11/12 02:29:51 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.12 2005/11/12 02:37:29 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -33,6 +33,10 @@ supports.")
     :documentation "List of xml-element objects representing
 the various mechainsms the host at the other end of the connection
 will accept.")
+   (jid-domain-part
+    :accessor jid-domain-part
+    :initarg :jid-domain-part
+    :initform nil)
    (username
     :accessor username
     :initarg :username)
@@ -58,15 +62,36 @@ details are left to the programmer."))
 	(format stream " (open)")
       (format stream " (closed)"))))
 
-(defun connect (&key (hostname *default-hostname*) (port *default-port*))
-  "Open TCP connection to hostname."
+(defun connect (&key (hostname *default-hostname*) (port *default-port*) 
+                     (receive-stanzas t) (begin-xml-stream t) jid-domain-part)
+  "Open TCP connection to hostname.
+
+By default this will set up the complete XML stream and receive the initial
+two stanzas (which would typically be stream:stream and stream:features)
+to make sure the connection object is fully loaded with the features,
+mechanisms and stream-id.  If this is causing a problem for you just
+specify :receive-stanzas nil.
+
+Using the same idea, you can disable the calling to begin-xml-stream.
+
+Some XMPP server's addresses are not the same as the domain part of
+the JID (eg. talk.google.com vs gmail.com) so we provide the option of
+passing that in here.  Could perhaps be taken care of by the library
+but I'm trying not to optimize too early plus if you are going to
+do in-band registration (JEP0077) then you don't have a JID until
+after you've connected."
   (let* ((stream (trivial-sockets:open-stream
                   hostname port :element-type '(unsigned-byte 8)))
          (connection (make-instance 'connection
+                                    :jid-domain-part jid-domain-part
                                     :server-stream stream
                                     :hostname hostname
                                     :port port)))
-    (begin-xml-stream connection)
+    (when begin-xml-stream
+      (begin-xml-stream connection))
+    (when receive-stanzas
+      (receive-stanza connection)
+      (receive-stanza connection))
     connection))
 
 (defmethod connectedp ((connection connection))
@@ -120,6 +145,7 @@ nil - feature is support but not required
 
 (defmethod handle ((connection connection) object)
   (format *debug-stream* "~&UNHANDLED: ~a~%" object)
+  (force-output *debug-stream*)
   object)
 
 ;;
@@ -294,26 +320,22 @@ so it should probably be renamed."
     (write-sequence sequence stream)
     (finish-output stream)
     (when *debug-stream*
-      (write-string string *debug-stream*))))
+      (write-string string *debug-stream*)
+      (force-output *debug-stream*))))
 
 ;;
 ;; Operators for communicating over the XML stream
 ;;
 
-(defmethod begin-xml-stream ((connection connection) &optional jid-domain-part)
+(defmethod begin-xml-stream ((connection connection))
   "Begin XML stream.  This should be the first thing to happen on a
-newly connected connection.
-
-Some XMPP server's addresses are not the same as the domain part of
-the JID (eg. talk.google.com vs gmail.com) so we provide the option of
-passing that in here.  Could perhaps be taken care of by the library
-but I'm trying not to optimize too early."
+newly connected connection."
   (with-xml-stream (stream connection)
    (xml-output stream "<?xml version='1.0'?>")
    (xml-output stream (fmt "<stream:stream to='~a'
 xmlns='jabber:client'
 xmlns:stream='http://etherx.jabber.org/streams'
-version='1.0'>" (or jid-domain-part (hostname connection))))))
+version='1.0'>" (or (jid-domain-part connection) (hostname connection))))))
 
 (defmethod end-xml-stream ((connection connection))
   "Closes the XML stream.  At this point you'd have to

@@ -88,7 +88,8 @@
 (defmethod cxml::write-octet (octet (sink octet+character-debug-stream-sink))
  (write-byte octet (target-stream sink))
  (when *debug-stream*
-   (write-char (code-char octet) *debug-stream*)))
+   (write-char (code-char octet) *debug-stream*)
+   (force-output *debug-stream*)))
 
 ;; I'd like to see what CXML is reading from the stream
 ;; and this code helps us in that regard by printing it

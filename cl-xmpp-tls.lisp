@@ -1,39 +1,25 @@
-;;;; $Id$
-;;;; $Source$
+;;;; $Id: cl-xmpp-tls.lisp,v 1.1 2005/11/11 17:21:56 eenge Exp $
+;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-tls.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
 (in-package :xmpp)
 
+(defun connect-tls (&rest args)
+  "Connect to the host and start a TLS stream."
+  (let ((connection (apply #'connect args)))
+    (send-starttls connection)
+    (begin-tls-stream connection)
+    connection))
+
 (defmethod send-starttls ((connection connection))
-  "Sends a request to start a TLS stream with the server.
-There are some things you as a user of this library need
-to know about this:
-
-  1) You should test for the presence of a starttls element
-     in the features slot of the connection and only call this
-     method if it is present.
-
-  2) Following your call to this method you should look for
-     either a proceed or a failure from the server.
-
-     a) If you get a proceed you may call begin-tls-stream and
-        your connection is now secure (though read step 3).
-
-     b) If you get a failure your connection is automatically
-        torn down by the server and you lose.
-
-  3) After begin-tls-stream you must proceed with sasl-auth
-     instead of the regular auth."
+  "Sends a request to start a TLS stream with the server."
   (with-xml-stream (stream connection)
    (xml-output stream "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>")))
 
-(defmethod begin-tls-stream ((connection connection))
+(defmethod convert-to-tls-stream ((connection connection))
   "Convert the existing stream to a TLS stream and issue
 a stream:stream open tag to start the XML stream."
   (setf (server-stream connection)
 	(cl+ssl:make-ssl-client-stream (server-stream connection)))
   (begin-xml-stream connection))
-
-(defmethod sasl-auth ((connection) username password resource)
-  nil)

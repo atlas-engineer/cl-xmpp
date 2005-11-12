@@ -9,9 +9,10 @@ Example:
 
 ;; authenticate (or use xmpp:register to make an account)
   * (xmpp:auth connection "password" "resource")
+;; defaults to plain non-sasl authentication but sasl is also available
 
 ;; let the server know you want to receive/send presence information
-;; (this makes you "come online" if others have a subscription with you
+;; (this makes you "come online" if others have a subscription with you)
   * (xmpp:presence connection)
 
 ;; send someone a message
@@ -21,6 +22,9 @@ Example:
   * (xmpp:receive-stanza-loop connection)
 <MESSAGE from=username@hostname to=me@myserver>
 [....]
+;; or use xmpp:receive-stanza if you're just wanting one stanza
+;; (note it will still block until you have received a complete
+;; stanza)
 
 ;; That's it.  Interrupt the loop to issue other commands, eg:
   * (xmpp:get-roster connection)
@@ -30,8 +34,9 @@ Example:
 
 ;; If you wish to handle the incoming messages or other objects simply
 ;; specify an xmpp:handle method for the objects you are interested in
-;; or (defmethod xmpp:handle (connection object) ...)  to get them all.  Or alternatively 
-;; specify :dom-repr t to receive-stanza-loop to get DOM-ish objects.
+;; or (defmethod xmpp:handle (connection object) ...)  to get them
+;; all.  Or alternatively specify :dom-repr t to receive-stanza-loop
+;; to get DOM-ish objects.
 
 ;; For example, if you wanted to create an annoying reply bot:
 

@@ -1,4 +1,4 @@
-;;;; $Id: package.lisp,v 1.6 2005/11/11 17:21:56 eenge Exp $
+;;;; $Id: package.lisp,v 1.7 2005/11/11 21:20:20 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -17,6 +17,8 @@
      :receive-stanza-loop :begin-xml-stream :end-xml-stream :with-iq
      :with-iq-query :connection :username :mechanisms :features
      :feature-p :feature-required-p :mechanism-p :receive-stanza
+     ;; only available if you've loaded cl-xmpp-tls
+     :connect-tls
      ;; xmpp commands
      :discover
      :registration-requirements :register
