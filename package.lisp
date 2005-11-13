@@ -1,4 +1,4 @@
-;;;; $Id: package.lisp,v 1.7 2005/11/11 21:20:20 eenge Exp $
+;;;; $Id: package.lisp,v 1.8 2005/11/12 04:20:21 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -33,7 +33,7 @@
      :get-privacy-lists :get-privacy-list
      ;; dom-ish interface
      :xml-element :name :elements :attributes :node :data
-     :xml-attribute :value
+     :xml-attribute :value :get-element :get-attribute
      ;; event interface
      :event
      :presence

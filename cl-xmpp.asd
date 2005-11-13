@@ -1,5 +1,5 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp.asd,v 1.4 2005/10/31 21:07:14 eenge Exp $
+;;;; $Id: cl-xmpp.asd,v 1.5 2005/11/11 17:21:56 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -14,7 +14,6 @@
 (defsystem cl-xmpp
     :name "cl-xmpp"
     :author "Erik Enge"
-    :version "0.0.1"
     :licence "MIT"
     :description "Common Lisp XMPP client implementation"
     :depends-on (#+sbcl :sb-bsd-sockets :trivial-sockets :cxml :ironclad)
