@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.6 2005/10/31 17:02:04 eenge Exp $
+;;;; $Id: result.lisp,v 1.7 2005/10/31 21:07:15 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -32,10 +32,8 @@
 ;;; In the end, I don't know if this will be sufficient.  It is
 ;;; for me at present time as all I really wanted to do was play
 ;;; around with XMPP in CL.  If you have an idea which you wish
-;;; were implemented in this library or perhaps you know a better
-;;; way of doing this please don't hesitate to speak up as I
-;;; most likely won't have much to do with this library from
-;;; now on.
+;;; were implemented in this library or perhaps you know of a better
+;;; way of doing this please don't hesitate to speak.
 
 (defclass xml-element ()
   ((name

@@ -1,4 +1,4 @@
-;;;; $Id: result-test.lisp,v 1.1 2005/11/13 02:36:11 eenge Exp $
+;;;; $Id: result-test.lisp,v 1.2 2005/11/13 02:45:41 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/test/result-test.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -14,4 +14,4 @@
 
 (deftest get-element.1 (xmpp:get-element *empty-element* :x) nil)
 (deftest get-element.2 (xmpp:get-element *element+subelement* :x) nil)
-(deftest get-element.3 (xmpp:get-element *element+subelement* :subtest) #.*sub-element*)
+(deftest get-element.3 (xmpp:name (xmpp:get-element *element+subelement* :subtest)) :subtest)

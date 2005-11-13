@@ -46,5 +46,5 @@ Example:
 
  * (defmethod xmpp:handle ((connection xmpp:connection) (message xmpp:message))
     (xmpp:message connection (xmpp:from message) 
-        (format nil "reply to: ~a~%" (xmpp:message object))))
+        (format nil "reply to: ~a" (xmpp:message object))))
 
