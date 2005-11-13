@@ -1,4 +1,8 @@
 clean:
-	find ./ -name *.fasl -exec rm \{\} \;
-	find ./ -name *.nfasl -exec rm \{\} \;
-	find ./ -name *~ -exec rm \{\} \;
+	find ./ -name "*.fasl" \
+	  -o -name "*.faslmt" \
+	  -o -name "*~" \
+	  -o -name "*.err" \
+	  -o -name "*.x86f" \
+	  -o -name "*.nfasl" \
+	 | xargs rm 
