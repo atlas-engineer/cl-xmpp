@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.5 2005/11/12 02:37:29 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.6 2005/11/12 04:20:21 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -12,7 +12,12 @@
 (add-auth-method :sasl-plain #'%sasl-plain%)
 
 (defmethod %sasl-digest-md5% ((connection connection) username password resource)
-  (handle-challenge-response connection username (digestify-string password) "DIGEST-MD5"))
+  (handle-challenge-response connection
+			     username
+			     (make-digest-password
+			      (stream-id connection)
+			      password)
+			     "DIGEST-MD5"))
 
 (add-auth-method :sasl-digest-md5 #'%sasl-digest-md5%)
 
@@ -38,7 +43,8 @@ stanza received from the server."
             (if (eq usb8-response :failure)
                 (values :failure initial-challenge)
               (let ((base64-response (base64:usb8-array-to-base64-string usb8-response)))
-                (format *debug-stream* "response: ~a~%" (map 'string #'code-char usb8-response))
+                (format *debug-stream* "response: ~a~%"
+			(map 'string #'code-char usb8-response))
                 (force-output *debug-stream*)
                 (send-challenge-response connection base64-response)
                 (let ((second-challenge (receive-stanza connection)))
@@ -46,7 +52,7 @@ stanza received from the server."
                       (progn
                         (send-second-response connection)
                         (let ((final-reply (receive-stanza connection)))
-		          ; This should return either :success or :failure.
+		          ; name should be either :success or :failure.
                           (values (name final-reply) final-reply)))
                     (values :failure second-challenge))))))
         (values :failure initial-challenge)))))
@@ -67,4 +73,3 @@ xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>~a</auth>"
 (defmethod send-second-response ((connection connection))
   (with-xml-stream (stream connection)
    (xml-output stream "<response xmlns='urn:ietf:params:xml:ns:xmpp-sasl'/>")))
-
