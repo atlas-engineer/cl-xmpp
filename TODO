@@ -1,8 +1,5 @@
 - respect stringprep/nodeprep  -  jid validator
 
-- also, i'm interning things which may screw up lisps with up/down
-  case different.
-
 - i hate that xmlns's are as strings and never validated
 
 - create a connect-test which makes a "fake" connection but

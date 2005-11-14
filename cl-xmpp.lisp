@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.14 2005/11/14 15:14:06 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.15 2005/11/14 19:21:06 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -163,7 +163,7 @@ nil - feature is support but not required
     objects))
 
 (defmethod parse-result ((connection connection) (attribute dom-impl::attribute))
-  (let* ((name (dom:node-name attribute))
+  (let* ((name (ensure-keyword (dom:node-name attribute)))
 	 (value (dom:value attribute))
 	 (xml-attribute
 	  (make-instance 'xml-attribute
@@ -171,14 +171,14 @@ nil - feature is support but not required
     xml-attribute))
 
 (defmethod parse-result ((connection connection) (node dom-impl::character-data))
-  (let* ((name (dom:node-name node))
+  (let* ((name (ensure-keyword (dom:node-name node)))
 	 (data (dom:data node))
 	 (xml-element (make-instance 'xml-element
 				     :name name :data data :node node)))
     xml-element))
 
 (defmethod parse-result ((connection connection) (node dom-impl::node))
-  (let* ((name (intern (string-upcase (dom:node-name node)) :keyword))
+  (let* ((name (ensure-keyword (dom:node-name node)))
 	 (xml-element (make-instance 'xml-element :name name :node node)))
     (dom:do-node-list (attribute (dom:attributes node))
       (push (parse-result connection attribute) (attributes xml-element)))
@@ -188,8 +188,8 @@ nil - feature is support but not required
 
 
 (defmethod xml-element-to-event ((connection connection) (object xml-element) (name (eql :iq)))
-  (let ((id (intern (string-upcase (value (get-attribute object :id))) :keyword)))
-    (if (not (string-equal (value (get-attribute object :type)) "result"))
+  (let ((id (ensure-keyword (value (get-attribute object :id)))))
+    (if (not (eq (ensure-keyword (value (get-attribute object :type))) :result))
 	(make-error (get-element object :error))
       (case id
 	(:error (make-error (get-element object :error)))
@@ -233,8 +233,7 @@ nil - feature is support but not required
   (map 'list #'(lambda (x) (dom-to-event connection x)) objects))
 
 (defmethod dom-to-event ((connection connection) (object xml-element))
-  (xml-element-to-event
-   connection object (intern (string-upcase (name object)) :keyword)))
+  (xml-element-to-event connection object (name object)))
 
 ;;; XXX: Is the ask attribute of the <presence/> element part of the RFC/JEP?
 (defmethod xml-element-to-event ((connection connection)

@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.7 2005/10/31 21:07:15 eenge Exp $
+;;;; $Id: result.lisp,v 1.8 2005/11/13 02:55:46 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -72,12 +72,12 @@ cl-xmpp-created data and access it that way instead.")
 	    (length (elements object))
 	    (length (data object)))))
 
-(defmethod get-attribute ((element xml-element) name &key (test 'string-equal))
+(defmethod get-attribute ((element xml-element) name &key (test 'eq))
   (dolist (attribute (attributes element))
     (when (funcall test name (name attribute))
       (return-from get-attribute attribute))))
 
-(defmethod get-element ((element xml-element) name &key (test 'string-equal))
+(defmethod get-element ((element xml-element) name &key (test 'eq))
   (dolist (subelement (elements element))
     (when (funcall test name (name subelement))
       (return-from get-element subelement))))

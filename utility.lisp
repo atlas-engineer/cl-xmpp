@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.8 2005/11/14 15:14:07 eenge Exp $
+;;;; $Id: utility.lisp,v 1.9 2005/11/14 19:42:29 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -43,7 +43,13 @@
   (push (list name operator) *auth-methods*))
 
 (defun ensure-keyword (thing)
+  "Makes a keyword except when it gets nil it just returns nil."
   (cond
-   ((typep thing 'string) (intern thing :keyword))
+   ((typep thing 'string)
+    (let ((correct-case-thing (if (eq *print-case* :upcase)
+				  (string-upcase thing)
+				(string-downcase thing))))
+      (intern correct-case-thing :keyword)))
    ((typep thing 'array) (ensure-keyword (map 'string #'code-char thing)))
+   ((eq thing nil) nil)
    (t (error "Don't know how to make keyword out of: ~a (type: ~a)" thing (type-of thing)))))
