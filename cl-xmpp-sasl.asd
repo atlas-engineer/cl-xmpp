@@ -1,5 +1,5 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp-sasl.asd,v 1.2 2005/11/11 21:20:20 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.asd,v 1.3 2005/11/13 02:36:10 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -16,6 +16,6 @@
     :author "Erik Enge"
     :licence "MIT"
     :description "Common Lisp XMPP client implementation with SASL support"
-    :depends-on (:cl-xmpp :cl-base64 :sasl)
+    :depends-on (:cl-xmpp :cl-base64 :cl-sasl)
     :components ((:file "cl-xmpp-sasl")))
 

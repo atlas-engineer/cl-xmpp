@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.13 2005/11/12 04:20:21 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.14 2005/11/14 15:14:06 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -331,11 +331,8 @@ so it should probably be renamed."
   "Begin XML stream.  This should be the first thing to happen on a
 newly connected connection."
   (with-xml-stream (stream connection)
-   (xml-output stream "<?xml version='1.0'?>")
-   (xml-output stream (fmt "<stream:stream to='~a'
-xmlns='jabber:client'
-xmlns:stream='http://etherx.jabber.org/streams'
-version='1.0'>" (or (jid-domain-part connection) (hostname connection))))))
+   (xml-output stream "<?xml version='1.0' ?>")
+   (xml-output stream (fmt "<stream:stream to='~a' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>" (or (jid-domain-part connection) (hostname connection))))))
 
 (defmethod end-xml-stream ((connection connection))
   "Closes the XML stream.  At this point you'd have to

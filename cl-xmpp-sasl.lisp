@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.6 2005/11/12 04:20:21 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.7 2005/11/14 16:08:42 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -59,11 +59,7 @@ stanza received from the server."
 
 (defmethod initiate-sasl-authentication ((connection connection) mechanism sasl-client)
   (with-xml-stream (stream connection)
-   (xml-output stream (fmt "<auth mechanism='~a'
-xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>~a</auth>" 
-                           mechanism
-                           (base64:usb8-array-to-base64-string
-                            (sasl:client-step sasl-client nil))))))
+   (xml-output stream (fmt "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='~a'/>" mechanism))))
 
 (defmethod send-challenge-response ((connection connection) response)
   (with-xml-stream (stream connection)
