@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.7 2005/11/11 21:20:20 eenge Exp $
+;;;; $Id: utility.lisp,v 1.8 2005/11/14 15:14:07 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -41,3 +41,9 @@
 
 (defun add-auth-method (name operator)
   (push (list name operator) *auth-methods*))
+
+(defun ensure-keyword (thing)
+  (cond
+   ((typep thing 'string) (intern thing :keyword))
+   ((typep thing 'array) (ensure-keyword (map 'string #'code-char thing)))
+   (t (error "Don't know how to make keyword out of: ~a (type: ~a)" thing (type-of thing)))))

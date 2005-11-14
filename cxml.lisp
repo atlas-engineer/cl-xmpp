@@ -19,7 +19,7 @@
 (defmethod sax:start-element ((handler stanza-handler) uri lname qname attrs)
   (declare (ignore uri lname))
   (when (eql (depth handler) 0)
-    (if (string-equal "stream:stream" qname)
+    (if (eq :stream\:stream (ensure-keyword qname))
         ;; Create an element for DOM-TO-EVENT so we don't have to have
         ;; any specialized code just to handle stream:stream.
         (let* ((document (dom:create-document))
