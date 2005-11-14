@@ -1,5 +1,5 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp-tls.asd,v 1.2 2005/11/11 21:20:20 eenge Exp $
+;;;; $Id: cl-xmpp-tls.asd,v 1.3 2005/11/13 02:36:10 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-tls.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -17,5 +17,5 @@
     :licence "MIT"
     :description "Common Lisp XMPP client implementation with TLS+SASL support"
     :depends-on (:cl-xmpp-sasl :cl+ssl)
-    :components ((:file "cl-xmpp-sasl")))
+    :components ((:file "cl-xmpp-tls")))
 
