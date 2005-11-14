@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.12 2005/11/12 02:37:29 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.13 2005/11/12 04:20:21 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -316,7 +316,7 @@ so it should probably be renamed."
 
 (defun xml-output (stream string)
   "Write string to stream as a sequence of bytes and not characters."
-  (let ((sequence (string-to-array string :element-type '(unsigned-byte 8))))
+  (let ((sequence (ironclad:ascii-string-to-byte-array string)))
     (write-sequence sequence stream)
     (finish-output stream)
     (when *debug-stream*

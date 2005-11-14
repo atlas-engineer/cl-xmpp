@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.6 2005/11/10 20:41:28 eenge Exp $
+;;;; $Id: utility.lisp,v 1.7 2005/11/11 21:20:20 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -14,12 +14,6 @@
    ((typep (car list) 'atom) (cons (car list)
 				   (flatten (cdr list))))
    ((typep (car list) 'list) (flatten (append (car list) (cdr list))))))
-
-(defun string-to-array (string &rest args)
-  (let ((array (apply #'make-array (length string) args)))
-    (dotimes (position (length string))
-      (setf (aref array position) (char-code (aref string position))))
-    array))
 
 (defun digestify-string (string)
   (ironclad:byte-array-to-hex-string
