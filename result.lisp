@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.8 2005/11/13 02:55:46 eenge Exp $
+;;;; $Id: result.lisp,v 1.9 2005/11/14 20:07:36 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -296,8 +296,11 @@ cl-xmpp-created data and access it that way instead.")
 (defclass xmpp-protocol-error-wait (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-auth (xmpp-protocol-error) ())
 
-(defun get-error-data (name)
+(defun get-error-data-name (name)
   (assoc name *errors*))
+
+(defun get-error-data-code (code)
+  (rassoc code *errors* :key #'second))
 
 (defun map-error-type-to-class (type)
   (case type
@@ -308,9 +311,22 @@ cl-xmpp-created data and access it that way instead.")
     (t (find-class 'xmpp-protocol-error))))
 
 (defmethod make-error ((object xml-element))
-  (let* ((name (intern (string-upcase (name (car (elements object)))) :keyword))
-	 (data (get-error-data name))
-	 (type (second data))
-	 (code (third data))
-	 (class (map-error-type-to-class type)))
+  (let* ((first-element (car (elements object)))
+	 (name)
+	 (type)
+	 (code)
+	 (class))
+    (if (eq (name first-element) :\#text) ; old-style error
+	(progn
+	  (setq code (parse-integer (value (get-attribute object :code))))
+	  (let ((data (get-error-data-code code)))
+	    (setq name (first data))
+	    (setq type (second data))
+	    (setq class (map-error-type-to-class type))))
+      (progn
+	(setq name (name first-element))
+	(let ((data (get-error-data-name name)))
+	  (setq type (second data))
+	  (setq code (third data))
+	  (setq class (map-error-type-to-class type)))))
     (make-instance class :code code :name name :xml-element object)))
