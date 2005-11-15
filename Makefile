@@ -5,4 +5,6 @@ clean:
 	  -o -name "*.err" \
 	  -o -name "*.x86f" \
 	  -o -name "*.nfasl" \
+	  -o -name "*.lib" \
+	  -o -name "*.fas" \
 	 | xargs rm 
