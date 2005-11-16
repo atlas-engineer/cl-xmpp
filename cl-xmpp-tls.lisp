@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-tls.lisp,v 1.3 2005/11/12 04:30:57 eenge Exp $
+;;;; $Id: cl-xmpp-tls.lisp,v 1.4 2005/11/14 15:14:06 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-tls.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -28,5 +28,7 @@ a stream:stream open tag to start the XML stream.
 Turn off sending XML stream start with :begin-xml-stream nil."
   (setf (server-stream connection)
 	(cl+ssl:make-ssl-client-stream (server-stream connection)))
+  (setf (server-xstream connection)                                            
+        (cxml:make-xstream (server-stream connection)))  
   (when begin-xml-stream
     (begin-xml-stream connection)))
