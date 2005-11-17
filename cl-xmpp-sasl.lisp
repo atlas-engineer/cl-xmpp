@@ -1,16 +1,27 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.8 2005/11/14 19:21:06 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.9 2005/11/17 19:41:40 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
 (in-package :xmpp)
 
-;;; XXX: Remember to BIND after this, I think.
+(defmethod %sasl-plain% ((connection connection) username password resource)
+  (let* ((mechanism "PLAIN")
+	 (sasl-client (make-instance (sasl:get-mechanism mechanism)
+				     :authentication-id username
+				     :password password
+				     :service "xmpp"
+				     :host (hostname connection))))
+    (format *debug-stream* "~&SASL state: ~a~&" (sasl::state sasl-client))
+    (initiate-sasl-authentication connection mechanism sasl-client)
+    (receive-stanza connection)))
+
+(add-auth-method :sasl-plain '%sasl-plain%)
+
 (defmethod %sasl-digest-md5% ((connection connection) username password resource)
   (handle-challenge-response connection username password "DIGEST-MD5"))
 
-(eval-when (:execute :load-toplevel :compile-toplevel)
-  (add-auth-method :sasl-digest-md5 #'%sasl-digest-md5%))
+(add-auth-method :sasl-digest-md5 '%sasl-digest-md5%)
 
 (defmethod handle-challenge-response ((connection connection) username password mechanism)
   "Helper method to the sasl authentication methods.  Goes through the
@@ -44,9 +55,7 @@ stanza received from the server."
                   (if (eq (name second-challenge) :challenge)
                       (progn
                         (send-second-response connection)
-                        (let ((final-reply (receive-stanza connection)))
-		          ; name should be either :success or :failure.
-                          (values (name final-reply) final-reply)))
+                        (receive-stanza connection))
                     (values :failure second-challenge))))))
         (values :failure initial-challenge)))))
 
@@ -54,7 +63,11 @@ stanza received from the server."
   (with-xml-stream (stream connection)
    (xml-output
     stream
-    (fmt "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='~a'/>" mechanism))))
+    (if (string-equal mechanism "plain")
+	(fmt "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='~a'>~a</auth>"
+	     mechanism
+	     (base64:usb8-array-to-base64-string (sasl:client-step sasl-client nil)))
+      (fmt "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='~a'/>" mechanism)))))
 
 (defmethod send-challenge-response ((connection connection) response)
   (with-xml-stream (stream connection)

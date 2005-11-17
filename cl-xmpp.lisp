@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.16 2005/11/14 20:07:36 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.17 2005/11/17 19:41:40 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -201,6 +201,7 @@ nil - feature is support but not required
 	(:unreg_1 :registration-cancellation-successful)
 	(:change1 :password-changed-succesfully)
 	(:auth2 :authentication-successful)
+	(:bind_2 :bind-successful)
 	(t (cond
 	    ((member id '(info1 info2 info3))
 	     (make-disco-info (get-element object :query)))
@@ -227,6 +228,13 @@ nil - feature is support but not required
 	(setf (mechanisms connection) (elements element))
       (push element (features connection))))
   object)
+
+;;; XXX: Not sure this is correct.  Could perhaps get a success element
+;;; for other things than just authentication.  I can't remember right
+;;; now but I should check.
+(defmethod xml-element-to-event ((connection connection)
+				 (object xml-element) (name (eql :success)))
+  :authentication-successful)
 
 (defmethod xml-element-to-event ((connection connection) (object xml-element) name)
   (declare (ignore name))
@@ -418,10 +426,10 @@ the server again."
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))
    (cxml:with-element "password" (cxml:text password))
-   (cxml:with-element "resource" (cxml:text resource))))
+   (cxml:with-element "resource" (cxml:text resource)))
+  (receive-stanza connection))
 
-(eval-when (:execute :load-toplevel :compile-toplevel)
-  (add-auth-method :plain #'%plain-auth%))
+(add-auth-method :plain '%plain-auth%)
 
 (defmethod %digest-md5-auth% ((connection connection) username password resource)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
@@ -430,10 +438,10 @@ the server again."
        (cxml:with-element "digest"
 	(cxml:text (make-digest-password (stream-id connection) password)))
      (error "stream-id on ~a not set, cannot make digest password" connection))
-   (cxml:with-element "resource" (cxml:text resource))))
+   (cxml:with-element "resource" (cxml:text resource)))
+  (receive-stanza connection))
 
-(eval-when (:execute :load-toplevel :compile-toplevel)
-  (add-auth-method :digest-md5 #'%digest-md5-auth%))
+(add-auth-method :digest-md5 '%digest-md5-auth%)
 
 (defmethod presence ((connection connection) &key type to)
   (cxml:with-xml-output (make-octet+character-debug-stream-sink

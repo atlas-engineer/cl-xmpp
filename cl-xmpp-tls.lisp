@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-tls.lisp,v 1.5 2005/11/16 19:06:12 eenge Exp $
+;;;; $Id: cl-xmpp-tls.lisp,v 1.6 2005/11/17 19:41:40 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-tls.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -7,23 +7,31 @@
 
 (defun connect-tls (&rest args)
   "Connect to the host and start a TLS stream."
-  (let ((connection (apply #'connect args)))
-    (send-starttls connection)
-    (let ((reply (receive-stanza connection)))
-      (case (name reply)
-	(:proceed 
-	 (let ((begin-xml-stream (if (member :begin-xml-stream args)
-				     (getf args :begin-xml-stream)
-				   t))
-	       (receive-stanzas (if (member :begin-xml-stream args)
-				    (getf args :begin-xml-stream)
-				  t)))
-	   (convert-to-tls-stream connection
-				  :begin-xml-stream begin-xml-stream
-				  :receive-stanzas receive-stanzas)
-		  (values connection :proceed reply)))
-	(:failure (values connection :failure reply))
-	(t (error "Unexpected reply from TLS negotiation: ~a." reply))))))
+  (let ((begin-xml-stream (if (member :begin-xml-stream args)
+			      (getf args :begin-xml-stream)
+			    t))
+	(receive-stanzas (if (member :begin-xml-stream args)
+			     (getf args :begin-xml-stream)
+			   t)))
+    (connect-tls2 (apply #'connect args)
+		  :begin-xml-stream begin-xml-stream
+		  :receive-stanzas receive-stanzas)))
+
+(defmethod connect-tls2 ((connection connection) &key
+			 (receive-stanzas t)
+			 (begin-xml-stream t))
+  "This one does all the work so if you need to use the
+regular CONNECT followed by something followed by converting
+your stream to TLS you could use this function."
+  (send-starttls connection)
+  (let ((reply (receive-stanza connection)))
+    (case (name reply)
+      (:proceed (convert-to-tls-stream connection
+				       :begin-xml-stream begin-xml-stream
+				       :receive-stanzas receive-stanzas)
+		(values connection :proceed reply))
+      (:failure (values connection :failure reply))
+      (t (error "Unexpected reply from TLS negotiation: ~a." reply)))))
 
 (defmethod send-starttls ((connection connection))
   "Sends a request to start a TLS stream with the server."
