@@ -1,9 +1,18 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.9 2005/11/17 19:41:40 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.10 2005/11/17 20:56:38 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
 (in-package :xmpp)
+
+(defmethod if-successful-restart-stream ((connection connection) reply)
+  (if (eq reply :authentication-successful)
+      (progn
+	(begin-xml-stream connection :xml-identifier nil)
+	(receive-stanza connection) ; stream
+	(receive-stanza connection) ; features
+	reply) 
+    reply))
 
 (defmethod %sasl-plain% ((connection connection) username password resource)
   (let* ((mechanism "PLAIN")
@@ -14,16 +23,19 @@
 				     :host (hostname connection))))
     (format *debug-stream* "~&SASL state: ~a~&" (sasl::state sasl-client))
     (initiate-sasl-authentication connection mechanism sasl-client)
-    (receive-stanza connection)))
+    (if-successful-restart-stream connection (receive-stanza connection))))
 
 (add-auth-method :sasl-plain '%sasl-plain%)
 
 (defmethod %sasl-digest-md5% ((connection connection) username password resource)
-  (handle-challenge-response connection username password "DIGEST-MD5"))
+  (if-successful-restart-stream
+   connection
+   (handle-challenge-response connection username password resource "DIGEST-MD5")))
 
 (add-auth-method :sasl-digest-md5 '%sasl-digest-md5%)
 
-(defmethod handle-challenge-response ((connection connection) username password mechanism)
+(defmethod handle-challenge-response ((connection connection) username password
+				      resource mechanism)
   "Helper method to the sasl authentication methods.  Goes through the
 entire SASL challenge/response chain.  Returns two values, the first
 is a keyword symbol (:success or :failure) and the second is the last
@@ -52,12 +64,13 @@ stanza received from the server."
                 (force-output *debug-stream*)
                 (send-challenge-response connection base64-response)
                 (let ((second-challenge (receive-stanza connection)))
+		  (format *debug-stream* "second-challenge: ~a~&" second-challenge)
                   (if (eq (name second-challenge) :challenge)
                       (progn
                         (send-second-response connection)
-                        (receive-stanza connection))
-                    (values :failure second-challenge))))))
-        (values :failure initial-challenge)))))
+			(receive-stanza connection))
+		    second-challenge)))))
+	initial-challenge))))
 
 (defmethod initiate-sasl-authentication ((connection connection) mechanism sasl-client)
   (with-xml-stream (stream connection)

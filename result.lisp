@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.10 2005/11/15 15:19:08 eenge Exp $
+;;;; $Id: result.lisp,v 1.11 2005/11/17 19:41:40 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -316,9 +316,25 @@ cl-xmpp-created data and access it that way instead.")
 
 ;;; XXX: Handle legacy errors
 (defmethod make-error ((object xml-element))
-  (let* ((code (parse-integer (value (get-attribute object :code))))
-	 (data (get-error-data-code code))
-	 (name (first data))
-	 (type (second data))
-	 (class (map-error-type-to-class type)))
+  (let ((code-value (value (get-attribute object :code)))
+	(code)
+	(name)
+	(type)
+	(class))
+    ; Slightly verbose but there are still cases I have not
+    ; addressed (and have no examples of, any more) so I'm going
+    ; to leave it like this for now.   
+    (if code-value
+	(let* ((code-number (parse-integer code-value))
+	       (data (get-error-data-code code-number)))
+	  (setq code code-number)
+	  (setq name (first data))
+	  (setq type (second data))
+	  (setq class (map-error-type-to-class type)))
+      (let* ((name (name (first (elements object))))
+	     (data (get-error-data-name name)))
+	(format *debug-stream* "~&Name: ~a~&" name)
+	(setq code (first data))
+	(setq type (second data))
+	(setq class (map-error-type-to-class type))))
     (make-instance class :code code :name name :xml-element object)))

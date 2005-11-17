@@ -1,4 +1,4 @@
-;;;; $Id: package.lisp,v 1.9 2005/11/13 02:36:10 eenge Exp $
+;;;; $Id: package.lisp,v 1.10 2005/11/17 20:56:38 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -23,7 +23,7 @@
      :discover
      :registration-requirements :register
      :auth-requirements :auth
-     :presence :message :bind
+     :presence :message :bind :session
      ;; subscriptions
      :request-subscription :approve-subscription
      :deny/cancel-subscription :unsubscribe

@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.17 2005/11/17 19:41:40 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.18 2005/11/17 20:56:38 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -93,8 +93,8 @@ after you've connected."
     (when begin-xml-stream
       (begin-xml-stream connection))
     (when receive-stanzas
-      (receive-stanza connection)
-      (receive-stanza connection))
+      (receive-stanza connection)  ; stream
+      (receive-stanza connection)) ; features
     connection))
 
 (defmethod connectedp ((connection connection))
@@ -337,11 +337,12 @@ so it should probably be renamed."
 ;; Operators for communicating over the XML stream
 ;;
 
-(defmethod begin-xml-stream ((connection connection))
+(defmethod begin-xml-stream ((connection connection) &key (xml-identifier t))
   "Begin XML stream.  This should be the first thing to happen on a
 newly connected connection."
   (with-xml-stream (stream connection)
-   (xml-output stream "<?xml version='1.0' ?>")
+   (when xml-identifier
+     (xml-output stream "<?xml version='1.0' ?>"))
    (xml-output stream (fmt "<stream:stream to='~a' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>" (or (jid-domain-part connection) (hostname connection))))))
 
 (defmethod end-xml-stream ((connection connection))
@@ -418,9 +419,19 @@ the server again."
    (cxml:with-element "username" (cxml:text username))))
 
 (defmethod auth ((connection connection) username password
-		 resource &optional (mechanism :plain))
+		 resource &optional (mechanism :plain) (bind-et-al t))
+  "If bind-et-al is T this operator will bind, create a session and
+call presence on your behalf if the authentication was successful."
   (setf (username connection) username)
-  (funcall (get-auth-method mechanism) connection username password resource))
+  (let ((result (funcall (get-auth-method mechanism) connection username password resource)))
+    (if (and (eq result :authentication-successful)
+	     bind-et-al)
+	(progn
+	  (bind connection username resource)
+	  (receive-stanza connection)
+	  (session connection)
+	  (receive-stanza connection))
+      result)))
 
 (defmethod %plain-auth% ((connection connection) username password resource)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
@@ -467,6 +478,11 @@ the server again."
     (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-bind")
     (cxml:with-element "resource"
      (cxml:text resource)))))
+
+(defmethod session ((connection connection))
+  (with-iq (connection :id "session_1" :type "set")
+   (cxml:with-element "session"
+    (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-session"))))
 
 ;;
 ;; Subscription
