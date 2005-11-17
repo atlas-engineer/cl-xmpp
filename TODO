@@ -1,6 +1,8 @@
 - respect stringprep/nodeprep  -  jid validator
 
 - i hate that xmlns's are as strings and never validated
+  - could perhaps pass xmlns as last parameter to
+    xml-element-to-event
 
 - create a connect-test which makes a "fake" connection but
   still writes into a stream.  prerequisite for writing a test

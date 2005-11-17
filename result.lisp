@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.9 2005/11/14 20:07:36 eenge Exp $
+;;;; $Id: result.lisp,v 1.10 2005/11/15 15:19:08 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -66,7 +66,7 @@ cl-xmpp-created data and access it that way instead.")
 (defmethod print-object ((object xml-element) stream)
   "Print the object for the Lisp reader."
   (print-unreadable-object (object stream :type t :identity t)
-    (format stream "~a (~a:~a:~a)"
+    (format stream "~a (~aattr:~achild:~adata)"
 	    (name object)
 	    (length (attributes object))
 	    (length (elements object))
@@ -288,8 +288,11 @@ cl-xmpp-created data and access it that way instead.")
 
 (defmethod print-object ((object xmpp-protocol-error) stream)
   "Print the object for the Lisp reader."
-  (print-unreadable-object (object stream :type t :identity t)
-    (format stream "code:~a name:~a" (code object) (name object))))
+  (print-unreadable-object (object stream :type nil :identity t)
+    (format stream "~a code:~a name:~a"
+	    (type-of object)
+	    (code object)
+	    (name object))))
 
 (defclass xmpp-protocol-error-modify (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-cancel (xmpp-protocol-error) ())
@@ -304,29 +307,18 @@ cl-xmpp-created data and access it that way instead.")
 
 (defun map-error-type-to-class (type)
   (case type
-    (modify (find-class 'xmpp-protocol-error-modify))
-    (cancel (find-class 'xmpp-protocol-error-cancel))
-    (wait (find-class 'xmpp-protocol-error-wait))
-    (auth (find-class 'xmpp-protocol-error-auth))
-    (t (find-class 'xmpp-protocol-error))))
+    (:modify (find-class 'xmpp-protocol-error-modify))
+    (:cancel (find-class 'xmpp-protocol-error-cancel))
+    (:wait (find-class 'xmpp-protocol-error-wait))
+    (:auth (find-class 'xmpp-protocol-error-auth))
+    (t (format *debug-stream* "~&Unable to find error class for ~w.~&" type)
+       (find-class 'xmpp-protocol-error))))
 
+;;; XXX: Handle legacy errors
 (defmethod make-error ((object xml-element))
-  (let* ((first-element (car (elements object)))
-	 (name)
-	 (type)
-	 (code)
-	 (class))
-    (if (eq (name first-element) :\#text) ; old-style error
-	(progn
-	  (setq code (parse-integer (value (get-attribute object :code))))
-	  (let ((data (get-error-data-code code)))
-	    (setq name (first data))
-	    (setq type (second data))
-	    (setq class (map-error-type-to-class type))))
-      (progn
-	(setq name (name first-element))
-	(let ((data (get-error-data-name name)))
-	  (setq type (second data))
-	  (setq code (third data))
-	  (setq class (map-error-type-to-class type)))))
+  (let* ((code (parse-integer (value (get-attribute object :code))))
+	 (data (get-error-data-code code))
+	 (name (first data))
+	 (type (second data))
+	 (class (map-error-type-to-class type)))
     (make-instance class :code code :name name :xml-element object)))

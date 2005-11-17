@@ -1,25 +1,16 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.7 2005/11/14 16:08:42 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.8 2005/11/14 19:21:06 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
 (in-package :xmpp)
 
-;;; XXX: Remember to BIND after these, I think.
-(defmethod %sasl-plain% ((connection connection) username password resource)
-  (handle-challenge-response connection username password "PLAIN"))
-
-(add-auth-method :sasl-plain #'%sasl-plain%)
-
+;;; XXX: Remember to BIND after this, I think.
 (defmethod %sasl-digest-md5% ((connection connection) username password resource)
-  (handle-challenge-response connection
-			     username
-			     (make-digest-password
-			      (stream-id connection)
-			      password)
-			     "DIGEST-MD5"))
+  (handle-challenge-response connection username password "DIGEST-MD5"))
 
-(add-auth-method :sasl-digest-md5 #'%sasl-digest-md5%)
+(eval-when (:execute :load-toplevel :compile-toplevel)
+  (add-auth-method :sasl-digest-md5 #'%sasl-digest-md5%))
 
 (defmethod handle-challenge-response ((connection connection) username password mechanism)
   "Helper method to the sasl authentication methods.  Goes through the
@@ -31,6 +22,7 @@ stanza received from the server."
                                     :password password
                                     :service "xmpp"
                                     :host (hostname connection))))
+    (format *debug-stream* "~&SASL state: ~a~&" (sasl::state sasl-client))
     (initiate-sasl-authentication connection mechanism sasl-client)
     (let ((initial-challenge (receive-stanza connection)))
       (if (eq (name initial-challenge) :challenge)
@@ -39,7 +31,8 @@ stanza received from the server."
                  (usb8-response (sasl:client-step 
                                  sasl-client 
                                  (ironclad:ascii-string-to-byte-array challenge-string))))
-            (format *debug-stream* "~&challenge-string: ~a~%" challenge-string)
+	    (format *debug-stream* "~&SASL state: ~a~&" (sasl::state sasl-client))
+            (format *debug-stream* "challenge-string: ~a~%" challenge-string)
             (if (eq usb8-response :failure)
                 (values :failure initial-challenge)
               (let ((base64-response (base64:usb8-array-to-base64-string usb8-response)))
@@ -59,7 +52,9 @@ stanza received from the server."
 
 (defmethod initiate-sasl-authentication ((connection connection) mechanism sasl-client)
   (with-xml-stream (stream connection)
-   (xml-output stream (fmt "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='~a'/>" mechanism))))
+   (xml-output
+    stream
+    (fmt "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='~a'/>" mechanism))))
 
 (defmethod send-challenge-response ((connection connection) response)
   (with-xml-stream (stream connection)

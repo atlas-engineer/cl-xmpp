@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.15 2005/11/14 19:21:06 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.16 2005/11/14 20:07:36 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -62,6 +62,9 @@ details are left to the programmer."))
 	(format stream " (open)")
       (format stream " (closed)"))))
 
+;;; Note: If you change the default value of either receive-stanzas
+;;; or begin-xml-stream you must update that value in cl-xmpp-tls.lisp's
+;;; connect-tls to be the same.
 (defun connect (&key (hostname *default-hostname*) (port *default-port*) 
                      (receive-stanzas t) (begin-xml-stream t) jid-domain-part)
   "Open TCP connection to hostname.
@@ -417,7 +420,8 @@ the server again."
    (cxml:with-element "password" (cxml:text password))
    (cxml:with-element "resource" (cxml:text resource))))
 
-(add-auth-method :plain #'%plain-auth%)
+(eval-when (:execute :load-toplevel :compile-toplevel)
+  (add-auth-method :plain #'%plain-auth%))
 
 (defmethod %digest-md5-auth% ((connection connection) username password resource)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
@@ -428,7 +432,8 @@ the server again."
      (error "stream-id on ~a not set, cannot make digest password" connection))
    (cxml:with-element "resource" (cxml:text resource))))
 
-(add-auth-method :digest-md5 #'%digest-md5-auth%)
+(eval-when (:execute :load-toplevel :compile-toplevel)
+  (add-auth-method :digest-md5 #'%digest-md5-auth%))
 
 (defmethod presence ((connection connection) &key type to)
   (cxml:with-xml-output (make-octet+character-debug-stream-sink
