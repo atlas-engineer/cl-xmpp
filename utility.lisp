@@ -1,4 +1,4 @@
-;;;; $Id: utility.lisp,v 1.9 2005/11/14 19:42:29 eenge Exp $
+;;;; $Id: utility.lisp,v 1.10 2005/11/14 20:07:36 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/utility.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -53,3 +53,9 @@
    ((typep thing 'array) (ensure-keyword (map 'string #'code-char thing)))
    ((eq thing nil) nil)
    (t (error "Don't know how to make keyword out of: ~a (type: ~a)" thing (type-of thing)))))
+
+(defun vector-to-array (vector)
+  (let ((array (make-array (length vector) :element-type '(unsigned-byte 8))))
+    (dotimes (position (length vector))
+      (setf (aref array position) (aref vector position)))
+    array))

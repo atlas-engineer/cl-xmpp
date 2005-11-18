@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.19 2005/11/17 21:51:15 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.20 2005/11/18 21:43:52 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -355,17 +355,22 @@ the server again."
 
 (defmacro with-iq ((connection &key id to (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
-  (let ((stream (gensym)))
+  (let ((stream (gensym "stream"))
+	(xml (gensym "xml")))
     `(let ((,stream (server-stream ,connection)))
        (prog1
-	   (cxml:with-xml-output (make-octet+character-debug-stream-sink ,stream)
-             (cxml:with-element "iq"
-               (when ,id
-                 (cxml:attribute "id" ,id))
-               (when ,to
-                 (cxml:attribute "to" ,to))
-             (cxml:attribute "type" ,type)
-               ,@body))
+;	   (cxml:with-xml-output (make-octet+character-debug-stream-sink ,stream)
+	   (let ((,xml (cxml:with-xml-output (cxml:make-octet-vector-sink)
+                         (cxml:with-element "iq"
+                           (when ,id
+                             (cxml:attribute "id" ,id))
+                           (when ,to
+                             (cxml:attribute "to" ,to))
+                           (cxml:attribute "type" ,type)
+                          ,@body))))
+	     (write-sequence (vector-to-array ,xml) ,stream)
+             (when *debug-stream*
+               (write-sequence (map 'string #'code-char ,xml) *debug-stream*)))
            (force-output ,stream)))))
 
 (defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
