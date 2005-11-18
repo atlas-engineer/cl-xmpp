@@ -6,10 +6,17 @@ Example:
   * (require :cl-xmpp)
 
   * (defvar *connection* (xmpp:connect :hostname "jabber.org"))
+;; or xmpp:connect-tls if you loaded cl-xmpp-tls
+
+;; note that for XMPP servers which do not have the same hostname
+;; as the domain-part of the user's JID you will have to pass that
+;; in.  eg for Google Talk:
+;;  (defvar *connection* (xmpp:connect-tls :hostname "talk.google.com"
+                                           :jid-domain-part "gmail.com"))
 
   * (xmpp:auth connection "password" "resource")
 ;; or pass :mechanism :sasl-plain, :digest-md5 or sasl-digest-md5
-;; if you loaded cl-xmpp-sasl.
+;; if you loaded cl-xmpp-sasl or cl-xmpp-tls.
 
 ;; send someone a message
   * (xmpp:message connection "username@hostname" "what's going on?")
