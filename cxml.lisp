@@ -1,7 +1,7 @@
-;;;; cxml-stanza.lisp -- parser helper for RFC 3920 XML streams
+;;;; $Id$
+;;;; $Source$
 
-;;; These are modifications to CXML which helps us deal with the
-;;; incremental-style parsing required for the XML stanzas.
+;;;; See the LICENSE file for licensing information.
 
 (in-package :xmpp)
 
