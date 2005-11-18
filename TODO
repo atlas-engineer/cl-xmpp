@@ -7,3 +7,6 @@
 - create a connect-test which makes a "fake" connection but
   still writes into a stream.  prerequisite for writing a test
   suite (which i should do).
+
+- havent found a good use for IDs yet so right now they are
+  just what happen to be in the specs

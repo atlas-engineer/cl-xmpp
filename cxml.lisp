@@ -75,21 +75,21 @@
 ;; To facilitate writing to both an octet and a character stream
 ;; using CXML.
 
-(defclass octet+character-debug-stream-sink (cxml::octet-stream-sink)
- ((target-stream
-   :accessor target-stream
-   :initarg :target-stream)))
+(defclass octet+character-debug-stream-sink (cxml::octet-stream-sink) ())
 
 (defun make-octet+character-debug-stream-sink (octet-stream &rest initargs)
- (apply #'make-instance 'octet+character-debug-stream-sink
-        :target-stream octet-stream
-        initargs))
+  (apply #'make-instance 'octet+character-debug-stream-sink
+	 :target-stream octet-stream
+	 initargs))
 
 (defmethod cxml::write-octet (octet (sink octet+character-debug-stream-sink))
- (write-byte octet (target-stream sink))
- (when *debug-stream*
-   (write-char (code-char octet) *debug-stream*)
-   (force-output *debug-stream*)))
+  (write-byte octet (slot-value sink 'cxml::target-stream))
+  (when *debug-stream*
+    (write-char (code-char octet) *debug-stream*)
+    (force-output *debug-stream*)))
+
+;(defmethod write-octet-sequence (sequence (sink octet+character-debug-stream-sink))
+;  (write-sequence sequence (slot-value sink 'cxml::target-stream)))
 
 ;; I'd like to see what CXML is reading from the stream
 ;; and this code helps us in that regard by printing it

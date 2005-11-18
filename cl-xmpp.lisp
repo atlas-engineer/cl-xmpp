@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.18 2005/11/17 20:56:38 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.19 2005/11/17 21:51:15 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -202,6 +202,7 @@ nil - feature is support but not required
 	(:change1 :password-changed-succesfully)
 	(:auth2 :authentication-successful)
 	(:bind_2 :bind-successful)
+	(:session_1 :session-initiated)
 	(t (cond
 	    ((member id '(info1 info2 info3))
 	     (make-disco-info (get-element object :query)))
@@ -328,7 +329,7 @@ so it should probably be renamed."
   "Write string to stream as a sequence of bytes and not characters."
   (let ((sequence (ironclad:ascii-string-to-byte-array string)))
     (write-sequence sequence stream)
-    (finish-output stream)
+    (force-output stream)
     (when *debug-stream*
       (write-string string *debug-stream*)
       (force-output *debug-stream*))))
@@ -356,26 +357,25 @@ the server again."
   "Macro to make it easier to write IQ stanzas."
   (let ((stream (gensym)))
     `(let ((,stream (server-stream ,connection)))
-       (cxml:with-xml-output (make-octet+character-debug-stream-sink ,stream)
-         (cxml:with-element "iq"
-           (cxml:attribute "id" ,id)
-           (when ,to
-             (cxml:attribute "to" ,to))
-           (cxml:attribute "type" ,type)
-           ,@body))
-       (force-output ,stream)
-       ,connection)))
+       (prog1
+	   (cxml:with-xml-output (make-octet+character-debug-stream-sink ,stream)
+             (cxml:with-element "iq"
+               (when ,id
+                 (cxml:attribute "id" ,id))
+               (when ,to
+                 (cxml:attribute "to" ,to))
+             (cxml:attribute "type" ,type)
+               ,@body))
+           (force-output ,stream)))))
 
 (defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
-  `(progn
-     (with-iq (connection :id ,id :type ,type :to ,to)
-      (cxml:with-element "query"
+  `(with-iq (connection :id ,id :type ,type :to ,to)
+     (cxml:with-element "query"
        (cxml:attribute "xmlns" ,xmlns)
-       (when ,node
-         (cxml:attribute "node" ,node))
-       ,@body))
-    ,connection))
+         (when ,node
+           (cxml:attribute "node" ,node))
+         ,@body)))
 
 ;;
 ;; Discovery
@@ -418,8 +418,10 @@ the server again."
   (with-iq-query (connection :id "auth1" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))))
 
-(defmethod auth ((connection connection) username password
-		 resource &optional (mechanism :plain) (bind-et-al t))
+(defmethod auth ((connection connection) username password resource &key
+		 (mechanism :plain)
+		 (bind-et-al t)
+		 (send-presence t))
   "If bind-et-al is T this operator will bind, create a session and
 call presence on your behalf if the authentication was successful."
   (setf (username connection) username)
@@ -427,10 +429,14 @@ call presence on your behalf if the authentication was successful."
     (if (and (eq result :authentication-successful)
 	     bind-et-al)
 	(progn
-	  (bind connection username resource)
-	  (receive-stanza connection)
-	  (session connection)
-	  (receive-stanza connection))
+	  (when (feature-p connection :bind)
+	    (bind connection resource)
+	    (receive-stanza connection))
+	  (when (feature-p connection :session)
+	    (session connection)
+	    (receive-stanza connection))
+	  (when send-presence
+	    (presence connection)))
       result)))
 
 (defmethod %plain-auth% ((connection connection) username password resource)
@@ -472,7 +478,7 @@ call presence on your behalf if the authentication was successful."
     (cxml:with-element "body" (cxml:text body))))
   connection)
 
-(defmethod bind ((connection connection) jid resource)
+(defmethod bind ((connection connection) resource)
   (with-iq (connection :id "bind_2" :type "set")
    (cxml:with-element "bind"
     (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-bind")

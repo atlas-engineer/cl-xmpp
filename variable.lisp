@@ -1,4 +1,4 @@
-;;;; $Id: variable.lisp,v 1.3 2005/11/11 17:21:56 eenge Exp $
+;;;; $Id: variable.lisp,v 1.4 2005/11/11 21:20:20 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/variable.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -12,7 +12,7 @@
 (defvar *default-hostname* "localhost")
 
 (defvar *errors*
-  '((:bad-request :modiy 400)
+  '((:bad-request :modify 400)
     (:conflict :cancel 409)
     (:feature-not-implemented :cancel 501)
     (:forbidden :auth 403)
