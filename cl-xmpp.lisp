@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.20 2005/11/18 21:43:52 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.21 2005/11/18 22:29:27 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -359,7 +359,6 @@ the server again."
 	(xml (gensym "xml")))
     `(let ((,stream (server-stream ,connection)))
        (prog1
-;	   (cxml:with-xml-output (make-octet+character-debug-stream-sink ,stream)
 	   (let ((,xml (cxml:with-xml-output (cxml:make-octet-vector-sink)
                          (cxml:with-element "iq"
                            (when ,id
