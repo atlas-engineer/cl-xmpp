@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.21 2005/11/18 22:29:27 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.22 2005/11/18 22:53:02 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -353,24 +353,28 @@ the server again."
   (with-xml-stream (stream connection)
    (xml-output stream "</stream:stream>")))
 
-(defmacro with-iq ((connection &key id to (type "get")) &body body)
-  "Macro to make it easier to write IQ stanzas."
-  (let ((stream (gensym "stream"))
-	(xml (gensym "xml")))
+(defmacro with-xml-output ((connection) &body body)
+  (let ((xml (gensym "xml"))
+	(stream (gensym "stream")))
     `(let ((,stream (server-stream ,connection)))
        (prog1
 	   (let ((,xml (cxml:with-xml-output (cxml:make-octet-vector-sink)
-                         (cxml:with-element "iq"
-                           (when ,id
-                             (cxml:attribute "id" ,id))
-                           (when ,to
-                             (cxml:attribute "to" ,to))
-                           (cxml:attribute "type" ,type)
-                          ,@body))))
+                        ,@body)))
 	     (write-sequence (vector-to-array ,xml) ,stream)
-             (when *debug-stream*
-               (write-sequence (map 'string #'code-char ,xml) *debug-stream*)))
-           (force-output ,stream)))))
+	     (when *debug-stream*
+	       (write-sequence (map 'string #'code-char ,xml) *debug-stream*)))
+	 (force-output ,stream)))))
+
+(defmacro with-iq ((connection &key id to (type "get")) &body body)
+  "Macro to make it easier to write IQ stanzas."
+  `(with-xml-output (,connection)
+     (cxml:with-element "iq"
+       (when ,id
+         (cxml:attribute "id" ,id))
+       (when ,to
+         (cxml:attribute "to" ,to))
+       (cxml:attribute "type" ,type)
+       ,@body)))
 
 (defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
@@ -465,22 +469,18 @@ call presence on your behalf if the authentication was successful."
 (add-auth-method :digest-md5 '%digest-md5-auth%)
 
 (defmethod presence ((connection connection) &key type to)
-  (cxml:with-xml-output (make-octet+character-debug-stream-sink
-			 (server-stream connection))
+  (with-xml-output (connection)
    (cxml:with-element "presence"
     (when type
       (cxml:attribute "type" type))
     (when to
-      (cxml:attribute "to" to))))
-  connection)
+      (cxml:attribute "to" to)))))
    
 (defmethod message ((connection connection) to body)
-  (cxml:with-xml-output (make-octet+character-debug-stream-sink
-			 (server-stream connection))
+  (with-xml-output (connection)
    (cxml:with-element "message"
     (cxml:attribute "to" to)
-    (cxml:with-element "body" (cxml:text body))))
-  connection)
+    (cxml:with-element "body" (cxml:text body)))))
 
 (defmethod bind ((connection connection) resource)
   (with-iq (connection :id "bind_2" :type "set")

@@ -1,5 +1,5 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp-test.asd,v 1.1 2005/11/13 02:36:11 eenge Exp $
+;;;; $Id: cl-xmpp-test.asd,v 1.2 2005/11/13 02:55:47 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/test/cl-xmpp-test.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -21,7 +21,7 @@
                  (:file "utility-test"
                   :depends-on ("package"))
                  (:file "result-test"
-                  :depends-on ("package"))))   
+                  :depends-on ("package"))
                  (:file "cl-xmpp-test"
-                  :depends-on ("package"))))   
+                  :depends-on ("package"))))
 
