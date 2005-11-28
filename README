@@ -14,7 +14,7 @@ Example:
 ;;  (defvar *connection* (xmpp:connect-tls :hostname "talk.google.com"
                                            :jid-domain-part "gmail.com"))
 
-  * (xmpp:auth connection "password" "resource")
+  * (xmpp:auth connection "username" "password" "resource")
 ;; or pass :mechanism :sasl-plain, :digest-md5 or sasl-digest-md5
 ;; if you loaded cl-xmpp-sasl or cl-xmpp-tls.
 
