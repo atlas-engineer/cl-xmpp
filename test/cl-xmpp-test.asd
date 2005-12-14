@@ -1,5 +1,5 @@
-;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp-test.asd,v 1.2 2005/11/13 02:55:47 eenge Exp $
+-;;;; -*- mode: lisp -*-
+;;;; $Id: cl-xmpp-test.asd,v 1.3 2005/11/21 18:58:04 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/test/cl-xmpp-test.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -25,3 +25,5 @@
                  (:file "cl-xmpp-test"
                   :depends-on ("package"))))
 
+(defmethod perform ((operation test-op) (component (eql (find-system 'cl-xmpp-test))))
+  (cl-xmpp-test:do-tests))

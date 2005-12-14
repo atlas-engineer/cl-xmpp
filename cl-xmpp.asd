@@ -1,5 +1,5 @@
 ;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp.asd,v 1.5 2005/11/11 17:21:56 eenge Exp $
+;;;; $Id: cl-xmpp.asd,v 1.6 2005/11/13 02:36:10 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -28,4 +28,8 @@
 			:depends-on ("cxml"))
                  (:file "cl-xmpp"
                         :depends-on ("result"))))
+
+(defmethod perform ((operation test-op) (component (eql (find-system 'cl-xmpp))))
+  (operate 'load-op 'cl-xmpp-test)
+  (operate 'test-op 'cl-xmpp-test :force t))
 
