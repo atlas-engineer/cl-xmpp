@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.22 2005/11/18 22:53:02 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.23 2005/11/21 18:58:03 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -66,7 +66,8 @@ details are left to the programmer."))
 ;;; or begin-xml-stream you must update that value in cl-xmpp-tls.lisp's
 ;;; connect-tls to be the same.
 (defun connect (&key (hostname *default-hostname*) (port *default-port*) 
-                     (receive-stanzas t) (begin-xml-stream t) jid-domain-part)
+                     (receive-stanzas t) (begin-xml-stream t) jid-domain-part
+                     (class 'connection))
   "Open TCP connection to hostname.
 
 By default this will set up the complete XML stream and receive the initial
@@ -85,7 +86,7 @@ do in-band registration (JEP0077) then you don't have a JID until
 after you've connected."
   (let* ((stream (trivial-sockets:open-stream
                   hostname port :element-type '(unsigned-byte 8)))
-         (connection (make-instance 'connection
+         (connection (make-instance class
                                     :jid-domain-part jid-domain-part
                                     :server-stream stream
                                     :hostname hostname
@@ -158,14 +159,14 @@ nil - feature is support but not required
 (defmethod parse-result ((connection connection) (objects list))
   (map 'list #'(lambda (x) (parse-result connection x)) objects))
 
-(defmethod parse-result ((connection connection) (document dom-impl::document))
+(defmethod parse-result ((connection connection) (document cxml-dom::document))
   (let (objects)
     (dom:map-node-list #'(lambda (node)
 			   (push (parse-result connection node) objects))
 		       (dom:child-nodes document))
     objects))
 
-(defmethod parse-result ((connection connection) (attribute dom-impl::attribute))
+(defmethod parse-result ((connection connection) (attribute cxml-dom::attribute))
   (let* ((name (ensure-keyword (dom:node-name attribute)))
 	 (value (dom:value attribute))
 	 (xml-attribute
@@ -173,41 +174,49 @@ nil - feature is support but not required
 			 :name name :value value :node attribute)))
     xml-attribute))
 
-(defmethod parse-result ((connection connection) (node dom-impl::character-data))
+(defmethod parse-result ((connection connection) (node cxml-dom::character-data))
   (let* ((name (ensure-keyword (dom:node-name node)))
 	 (data (dom:data node))
 	 (xml-element (make-instance 'xml-element
 				     :name name :data data :node node)))
     xml-element))
 
-(defmethod parse-result ((connection connection) (node dom-impl::node))
+(defmethod parse-result ((connection connection) (node cxml-dom::node))
   (let* ((name (ensure-keyword (dom:node-name node)))
 	 (xml-element (make-instance 'xml-element :name name :node node)))
-    (dom:do-node-list (attribute (dom:attributes node))
-      (push (parse-result connection attribute) (attributes xml-element)))
     (dom:do-node-list (child (dom:child-nodes node))
       (push (parse-result connection child) (elements xml-element)))
     xml-element))
 
+(defmethod parse-result ((connection connection) (node cxml-dom::element))
+  (let ((xml-element (call-next-method)))
+    (dom:do-node-map (attribute (dom:attributes node))
+      (push (parse-result connection attribute) (attributes xml-element)))
+    xml-element))
 
 (defmethod xml-element-to-event ((connection connection) (object xml-element) (name (eql :iq)))
-  (let ((id (ensure-keyword (value (get-attribute object :id)))))
-    (if (not (eq (ensure-keyword (value (get-attribute object :type))) :result))
-	(make-error (get-element object :error))
-      (case id
-	(:error (make-error (get-element object :error)))
-	(:roster_1 (make-roster object))
-	(:reg2 :registration-successful)
-	(:unreg_1 :registration-cancellation-successful)
-	(:change1 :password-changed-succesfully)
-	(:auth2 :authentication-successful)
-	(:bind_2 :bind-successful)
-	(:session_1 :session-initiated)
-	(t (cond
-	    ((member id '(info1 info2 info3))
-	     (make-disco-info (get-element object :query)))
-	    ((member id '(items1 items2 items3 items4))
-	     (make-disco-items (get-element object :query)))))))))
+  (let ((id (ensure-keyword (value (get-attribute object :id))))
+        (type (ensure-keyword (value (get-attribute object :type)))))
+    (case id
+      (:error (make-error (get-element object :error)))
+      (:roster_1 (make-roster object))
+      (:reg2 :registration-successful)
+      (:unreg_1 :registration-cancellation-successful)
+      (:change1 :password-changed-successfully)
+      (:auth2 :authentication-successful)
+      (:bind_2 :bind-successful)
+      (:session_1 :session-initiated)
+      (t 
+       (case type
+         (:get (warn "Don't know how to handle IQ get yet."))
+         (t
+          (cond
+           ((member id '(info1 info2 info3))
+            (make-disco-info (get-element object :query)))
+           ((member id '(items1 items2 items3 items4))
+            (make-disco-items (get-element object :query)))
+           (t ;; Assuming an error
+              (make-error (get-element object :error))))))))))
 
 (defmethod xml-element-to-event ((connection connection)
 				 (object xml-element) (name (eql :error)))
@@ -270,6 +279,8 @@ nil - feature is support but not required
                  :xml-element object
 		 :from (value (get-attribute object :from))
 		 :to (value (get-attribute object :to))
+                 :id (value (get-attribute object :id))
+                 :type (value (get-attribute object :type))
 		 :body (data (get-element (get-element object :body) :\#text))))
 
 ;;
@@ -305,13 +316,13 @@ to HANDLE)."
 (defun read-stanza (connection)
   (unless (server-xstream connection)
     (setf (server-xstream connection)
-          (cxml:make-xstream (server-stream connection))))
+          (cxml:make-xstream (make-slow-stream (server-stream connection)))))
   (force-output (server-stream connection))
   (catch 'stanza
-    (let ((cxml::*default-namespace-bindings*
-           (acons "stream"
-                  "http://etherx.jabber.org/streams"
-                  cxml::*default-namespace-bindings*)))
+    (let ((cxml::*namespace-bindings*
+           (acons #"stream"
+                  #"http://etherx.jabber.org/streams"
+                  cxml::*namespace-bindings*)))
       (cxml::parse-xstream (server-xstream connection)
                            (make-instance 'stanza-handler))
       (runes::write-xstream-buffer (server-xstream connection)))))
@@ -378,7 +389,7 @@ the server again."
 
 (defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
-  `(with-iq (connection :id ,id :type ,type :to ,to)
+  `(with-iq (,connection :id ,id :type ,type :to ,to)
      (cxml:with-element "query"
        (cxml:attribute "xmlns" ,xmlns)
          (when ,node
@@ -476,10 +487,12 @@ call presence on your behalf if the authentication was successful."
     (when to
       (cxml:attribute "to" to)))))
    
-(defmethod message ((connection connection) to body)
+(defmethod message ((connection connection) to body &key id (type :chat))
   (with-xml-output (connection)
    (cxml:with-element "message"
     (cxml:attribute "to" to)
+    (when id (cxml:attribute "id" id))
+    (when type (cxml:attribute "type" (string-downcase (string type))))
     (cxml:with-element "body" (cxml:text body)))))
 
 (defmethod bind ((connection connection) resource)

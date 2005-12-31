@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.11 2005/11/17 19:41:40 eenge Exp $
+;;;; $Id: result.lisp,v 1.12 2005/11/17 21:51:16 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -125,12 +125,24 @@ cl-xmpp-created data and access it that way instead.")
    (body
     :accessor body
     :initarg :body
-    :initform "")))
+    :initform "")
+   (id
+    :accessor id
+    :initarg :id
+    :initform nil)
+   (type
+    :accessor type-
+    :initarg :type
+    :initform nil)))
 
 (defmethod print-object ((object message) stream)
   "Print the object for the Lisp reader."
   (print-unreadable-object (object stream :type t :identity t)
-    (format stream "to:~a from:~a" (to object) (from object))))
+    (format stream "to:~a from:~a id:~a type:~a" 
+            (to object) 
+            (from object)
+            (id object)
+            (type- object))))
 
 (defclass presence (event)
   ((to
