@@ -8,5 +8,6 @@
   still writes into a stream.  prerequisite for writing a test
   suite (which i should do).
 
-- havent found a good use for IDs yet so right now they are
+- avent found a good use for IDs yet so right now they are
   just what happen to be in the specs
+
