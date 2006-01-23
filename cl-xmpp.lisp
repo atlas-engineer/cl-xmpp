@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.23 2005/11/21 18:58:03 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.24 2005/12/31 20:15:06 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -316,7 +316,12 @@ to HANDLE)."
 (defun read-stanza (connection)
   (unless (server-xstream connection)
     (setf (server-xstream connection)
-          (cxml:make-xstream (make-slow-stream (server-stream connection)))))
+          (cxml:make-xstream (make-slow-stream (server-stream connection))
+			     :name
+			     (cxml::make-stream-name
+			      :entity-name "stanza"
+			      :entity-kind :main
+			      :uri nil))))
   (force-output (server-stream connection))
   (catch 'stanza
     (let ((cxml::*namespace-bindings*
