@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.24 2005/12/31 20:15:06 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.25 2006/01/23 16:41:11 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -196,26 +196,29 @@ nil - feature is support but not required
 
 (defmethod xml-element-to-event ((connection connection) (object xml-element) (name (eql :iq)))
   (let ((id (ensure-keyword (value (get-attribute object :id))))
-        (type (ensure-keyword (value (get-attribute object :type)))))
-    (case id
-      (:error (make-error (get-element object :error)))
-      (:roster_1 (make-roster object))
-      (:reg2 :registration-successful)
-      (:unreg_1 :registration-cancellation-successful)
-      (:change1 :password-changed-successfully)
-      (:auth2 :authentication-successful)
-      (:bind_2 :bind-successful)
-      (:session_1 :session-initiated)
-      (t 
-       (case type
-         (:get (warn "Don't know how to handle IQ get yet."))
-         (t
-          (cond
-           ((member id '(info1 info2 info3))
-            (make-disco-info (get-element object :query)))
-           ((member id '(items1 items2 items3 items4))
-            (make-disco-items (get-element object :query)))
-           (t ;; Assuming an error
+	(type (ensure-keyword (value (get-attribute object :type))))
+	(errorp (get-element object :error)))
+    (if errorp
+	(make-error errorp)
+      (case id
+	(:error (make-error errorp))
+	(:roster_1 (make-roster object))
+	(:reg2 :registration-successful)
+	(:unreg_1 :registration-cancellation-successful)
+	(:change1 :password-changed-successfully)
+	(:auth2 :authentication-successful)
+	(:bind_2 :bind-successful)
+	(:session_1 :session-initiated)
+	(t 
+	 (case type
+	   (:get (warn "Don't know how to handle IQ get yet."))
+	   (t
+	    (cond
+	     ((member id '(info1 info2 info3))
+	      (make-disco-info (get-element object :query)))
+	     ((member id '(items1 items2 items3 items4))
+	      (make-disco-items (get-element object :query)))
+	     (t ;; Assuming an error
               (make-error (get-element object :error))))))))))
 
 (defmethod xml-element-to-event ((connection connection)
