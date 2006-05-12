@@ -1,5 +1,5 @@
 -;;;; -*- mode: lisp -*-
-;;;; $Id: cl-xmpp-test.asd,v 1.3 2005/11/21 18:58:04 eenge Exp $
+;;;; $Id: cl-xmpp-test.asd,v 1.4 2005/12/14 19:04:07 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/test/cl-xmpp-test.asd,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -16,7 +16,7 @@
     :author "Erik Enge"
     :licence "MIT"
     :description "Common Lisp XMPP client implementation"
-    :depends-on (:cl-xmpp :rt)
+    :depends-on (:cl-xmpp #-sbcl :rt #+sbcl :sb-rt)
     :components ((:file "package")
                  (:file "utility-test"
                   :depends-on ("package"))
@@ -25,5 +25,6 @@
                  (:file "cl-xmpp-test"
                   :depends-on ("package"))))
 
-(defmethod perform ((operation test-op) (component (eql (find-system 'cl-xmpp-test))))
-  (cl-xmpp-test:do-tests))
+(defmethod perform ((operation test-op)
+		    (component (eql (find-system 'cl-xmpp-test))))
+  (funcall (intern "DO-TESTS" 'cl-xmpp-test)))

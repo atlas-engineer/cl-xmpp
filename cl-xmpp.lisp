@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.25 2006/01/23 16:41:11 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.26 2006/03/02 15:51:33 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -219,7 +219,7 @@ nil - feature is support but not required
 	     ((member id '(items1 items2 items3 items4))
 	      (make-disco-items (get-element object :query)))
 	     (t ;; Assuming an error
-              (make-error (get-element object :error))))))))))
+              (make-error (get-element object :error)))))))))))
 
 (defmethod xml-element-to-event ((connection connection)
 				 (object xml-element) (name (eql :error)))

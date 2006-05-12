@@ -14,15 +14,15 @@ Example:
 ;;  (defvar *connection* (xmpp:connect-tls :hostname "talk.google.com"
                                            :jid-domain-part "gmail.com"))
 
-  * (xmpp:auth connection "username" "password" "resource")
+  * (xmpp:auth *connection* "username" "password" "resource")
 ;; or pass :mechanism :sasl-plain, :digest-md5 or sasl-digest-md5
 ;; if you loaded cl-xmpp-sasl or cl-xmpp-tls.
 
 ;; send someone a message
-  * (xmpp:message connection "username@hostname" "what's going on?")
+  * (xmpp:message *connection* "username@hostname" "what's going on?")
 
 ;; then sit back and watch the messages roll in:
-  * (xmpp:receive-stanza-loop connection)
+  * (xmpp:receive-stanza-loop *connection*)
 <MESSAGE from=username@hostname to=me@myserver>
 [....]
 ;; or use xmpp:receive-stanza if you're just wanting one stanza
@@ -30,7 +30,7 @@ Example:
 ;; stanza)
 
 ;; That's it.  Interrupt the loop to issue other commands, eg:
-  * (xmpp:get-roster connection)
+  * (xmpp:get-roster *connection*)
 
 ;; or any of the other ones you may find by looking through cl-xmpp.lisp
 ;; and package.lisp to see which ones are exported.
