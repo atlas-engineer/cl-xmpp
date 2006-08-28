@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.26 2006/03/02 15:51:33 eenge Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.27 2006/05/12 17:45:49 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -487,13 +487,22 @@ call presence on your behalf if the authentication was successful."
 
 (add-auth-method :digest-md5 '%digest-md5-auth%)
 
-(defmethod presence ((connection connection) &key type to)
+(defmethod presence ((connection connection) &key type to status show priority)
   (with-xml-output (connection)
    (cxml:with-element "presence"
     (when type
       (cxml:attribute "type" type))
     (when to
-      (cxml:attribute "to" to)))))
+      (cxml:attribute "to" to))
+    (when status
+      (cxml:with-element "status"
+	(cxml:text status)))
+    (when show
+      (cxml:with-element "show"
+	(cxml:text show)))
+    (when priority
+      (cxml:with-element "priority"
+	(cxml:text (format nil "~A" priority)))))))
    
 (defmethod message ((connection connection) to body &key id (type :chat))
   (with-xml-output (connection)
