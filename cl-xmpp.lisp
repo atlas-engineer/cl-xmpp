@@ -316,16 +316,6 @@ to HANDLE)."
       (when stanza-callback
 	(car (funcall stanza-callback stanza connection :dom-repr dom-repr)))))))
 
-;;; XXX: Kludge. Newer versions of CXML rebind *namespace-bindings*
-;;; inside of parse-xstream, so the old method of augmenting
-;;; *namespace-bindings* inside of read-stanza does not work any
-;;; longer. - Julian Stecklina (Mar 03, 2007)
-
-(unless (assoc #"stream" cxml::*initial-namespace-bindings*
-	       :test #'runes:rod=)
-  (push (cons #"stream" #"http://etherx.jabber.org/streams")
-	cxml::*initial-namespace-bindings*))
-
 (defun read-stanza (connection)
   (unless (server-xstream connection)
     (setf (server-xstream connection)
@@ -337,9 +327,13 @@ to HANDLE)."
 			      :uri nil))))
   (force-output (server-stream connection))
   (catch 'stanza
-    (cxml::parse-xstream (server-xstream connection)
-			 (make-instance 'stanza-handler))
-    (runes::write-xstream-buffer (server-xstream connection))))
+    (let ((cxml::*initial-namespace-bindings*
+           (acons #"stream"
+                  #"http://etherx.jabber.org/streams"
+                  cxml::*initial-namespace-bindings*)))
+      (cxml::parse-xstream (server-xstream connection)
+                           (make-instance 'stanza-handler))
+      (runes::write-xstream-buffer (server-xstream connection)))))
  
 (defmacro with-xml-stream ((stream connection) &body body)
   "Helper macro to make it easy to control outputting XML
