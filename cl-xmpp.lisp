@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.28 2006/08/28 21:17:08 jstecklina Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.30 2007/03/04 04:26:23 jstecklina Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -10,8 +10,8 @@
     :accessor server-stream
     :initarg :server-stream
     :initform nil)
-   (server-xstream
-    :accessor server-xstream
+   (server-source
+    :accessor server-source
     :initform nil)
    (stream-id
     :accessor stream-id
@@ -317,23 +317,37 @@ to HANDLE)."
 	(car (funcall stanza-callback stanza connection :dom-repr dom-repr)))))))
 
 (defun read-stanza (connection)
-  (unless (server-xstream connection)
-    (setf (server-xstream connection)
-          (cxml:make-xstream (make-slow-stream (server-stream connection))
-			     :name
-			     (cxml::make-stream-name
-			      :entity-name "stanza"
-			      :entity-kind :main
-			      :uri nil))))
+  (unless (server-source connection)
+    (setf (server-source connection)
+          (cxml:make-source
+	   (cxml:make-xstream (make-slow-stream (server-stream connection))
+			      :name
+			      (cxml::make-stream-name
+			       :entity-name "stanza"
+			       :entity-kind :main
+			       :uri nil))
+	   :buffering nil)))
   (force-output (server-stream connection))
-  (catch 'stanza
-    (let ((cxml::*initial-namespace-bindings*
-           (acons #"stream"
-                  #"http://etherx.jabber.org/streams"
-                  cxml::*initial-namespace-bindings*)))
-      (cxml::parse-xstream (server-xstream connection)
-                           (make-instance 'stanza-handler))
-      (runes::write-xstream-buffer (server-xstream connection)))))
+  (let ((source (server-source connection)))
+    (loop
+      (multiple-value-bind (key uri lname qname)
+	  (klacks:peek-next source)
+	(when (eq key :start-element)
+	  (return
+	    (if (and (equal uri "http://etherx.jabber.org/streams")
+		     (equal lname "stream"))
+		;; Create an element for DOM-TO-EVENT so we don't have to have
+		;; any specialized code just to handle stream:stream.
+		(let* ((document (cxml-dom:create-document))
+		       (element (dom:create-element document qname)))
+		  (dom:append-child document element)
+		  (dolist (attribute (klacks:list-attributes source))
+		    (let ((name (sax::attribute-qname attribute))
+			  (value (sax::attribute-value attribute)))
+		      (dom:set-attribute element name value)))
+		  document)
+		(klacks:serialize-element source
+					  (cxml-dom:make-dom-builder)))))))))
  
 (defmacro with-xml-stream ((stream connection) &body body)
   "Helper macro to make it easy to control outputting XML
