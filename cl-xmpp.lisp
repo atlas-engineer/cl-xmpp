@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.31 2007/03/05 17:38:35 jstecklina Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.32 2008/07/09 19:51:17 ehuelsmann Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -84,8 +84,9 @@ passing that in here.  Could perhaps be taken care of by the library
 but I'm trying not to optimize too early plus if you are going to
 do in-band registration (JEP0077) then you don't have a JID until
 after you've connected."
-  (let* ((stream (trivial-sockets:open-stream
-                  hostname port :element-type '(unsigned-byte 8)))
+  (let* ((stream (usocket:socket-stream
+		   (usocket:socket-connect
+                          hostname port :element-type '(unsigned-byte 8))))
          (connection (make-instance class
                                     :jid-domain-part jid-domain-part
                                     :server-stream stream
