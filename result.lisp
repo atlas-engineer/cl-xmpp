@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.12 2005/11/17 21:51:16 eenge Exp $
+;;;; $Id: result.lisp,v 1.7 2007/12/19 10:42:37 kcrosbie Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -61,26 +61,39 @@ cl-xmpp-created data and access it that way instead.")
     :initform nil)))
 
 (defmethod data (object)
+  (declare (ignore object))
   nil)
 
 (defmethod print-object ((object xml-element) stream)
   "Print the object for the Lisp reader."
   (print-unreadable-object (object stream :type t :identity t)
-    (format stream "~a (~aattr:~achild:~adata)"
+    (format stream "~a (~a:~_~a:~_~a)"
 	    (name object)
-	    (length (attributes object))
-	    (length (elements object))
-	    (length (data object)))))
+            (attributes object)
+            (elements object)
+            (data object))))
 
 (defmethod get-attribute ((element xml-element) name &key (test 'eq))
   (dolist (attribute (attributes element))
     (when (funcall test name (name attribute))
       (return-from get-attribute attribute))))
 
+;; KC: The get-element function is not correct to use as is, because it
+;; basically returns the first element that matches in the list.
+;; It is possible to have multiple matching elements.
+;; The correct solution that I have provided is to provide a get-elements
+;; function that returns all matching elements and allows the user to choose
+;; which they want.
+;; I have not removed the old get-element function or any code that uses it.
 (defmethod get-element ((element xml-element) name &key (test 'eq))
   (dolist (subelement (elements element))
     (when (funcall test name (name subelement))
       (return-from get-element subelement))))
+
+(defmethod get-elements ((element xml-element) name &key (test 'eq))
+  (loop for subelement in (elements element)
+      when (funcall test name (name subelement))
+      collect subelement))
 
 (defclass xml-attribute ()
   ((name
@@ -96,11 +109,12 @@ cl-xmpp-created data and access it that way instead.")
     :initform nil)))
 
 (defmethod value (object)
+  (declare (ignore object))
   nil)
 
 (defmethod print-object ((object xml-attribute) stream)
   "Print the object for the Lisp reader."
-  (print-unreadable-object (object stream :type t :identity t)
+  (print-unreadable-object (object stream :type nil :identity nil)
     (format stream "~a=~a" (name object) (value object))))
 
 ;;
@@ -112,6 +126,10 @@ cl-xmpp-created data and access it that way instead.")
     :accessor xml-element
     :initarg :xml-element
     :initform nil)))
+
+(defmethod print-object ((object event) stream)
+  (print-unreadable-object (object stream :type nil :identity nil)
+    (format stream "~a" (xml-element object))))
 
 (defclass message (event)
   ((to
@@ -126,6 +144,10 @@ cl-xmpp-created data and access it that way instead.")
     :accessor body
     :initarg :body
     :initform "")
+   (subject
+    :accessor subject
+    :initarg :subject
+    :initform "")
    (id
     :accessor id
     :initarg :id
@@ -138,11 +160,28 @@ cl-xmpp-created data and access it that way instead.")
 (defmethod print-object ((object message) stream)
   "Print the object for the Lisp reader."
   (print-unreadable-object (object stream :type t :identity t)
-    (format stream "to:~a from:~a id:~a type:~a" 
+    (format stream "to:~a from:~a id:~a type:~a subject:~a"
             (to object) 
             (from object)
             (id object)
-            (type- object))))
+            (type- object)
+            (subject object))))
+
+
+(defmethod make-message ((object xml-element))
+  (let ((body-element (or (get-element object :body)
+                          (get-element object :x)))
+        (subject-element (get-element object :subject)))
+    (make-instance 'message
+      :xml-element object
+      :from (value (get-attribute object :from))
+      :to   (value (get-attribute object :to))
+      :id   (value (get-attribute object :id))
+      :type (value (get-attribute object :type))
+      :body (data  (and body-element (get-element body-element :\#text)))
+      :subject (data (and subject-element
+                          (get-element subject-element :\#text))))))
+
 
 (defclass presence (event)
   ((to
@@ -249,6 +288,11 @@ cl-xmpp-created data and access it that way instead.")
     :initarg :features
     :initform nil)))
 
+(defmethod print-object ((object disco-info) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "~a ~_~a" (identities object) (features object))))
+
+
 (defmethod make-disco-info ((object xml-element))
   (let ((disco-info (make-instance 'disco-info :xml-element object)))
     (dolist (element (elements object))
@@ -287,7 +331,7 @@ cl-xmpp-created data and access it that way instead.")
     disco-items))
 
 ;;
-;; Error
+;; Errors
 ;;
 
 (defclass xmpp-protocol-error (event)
@@ -296,26 +340,37 @@ cl-xmpp-created data and access it that way instead.")
     :initarg :code)
    (name
     :accessor name
-    :initarg :name)))
+    :initarg :name)
+   (text
+    :accessor text
+    :initarg :text)))
 
 (defmethod print-object ((object xmpp-protocol-error) stream)
   "Print the object for the Lisp reader."
   (print-unreadable-object (object stream :type nil :identity t)
-    (format stream "~a code:~a name:~a"
+    (format stream "~a code:~a name:~a ~_elem:~a"
 	    (type-of object)
 	    (code object)
-	    (name object))))
+            (name object)
+            (xml-element object))))
 
 (defclass xmpp-protocol-error-modify (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-cancel (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-wait (xmpp-protocol-error) ())
 (defclass xmpp-protocol-error-auth (xmpp-protocol-error) ())
 
-(defun get-error-data-name (name)
-  (assoc name *errors*))
+(defun get-legacy-error-data-code (code)
+  (rassoc code *legacy-errors* :key #'second))
 
-(defun get-error-data-code (code)
-  (rassoc code *errors* :key #'second))
+(defun find-error-data (elements)
+  "An error can be of the form <errorname> so this function searches the
+   errors that we know about until we find one that's in our element list"
+  (or (find-if #'(lambda (elt)
+                   (member elt elements :key #'name))
+                *legacy-errors* :key #'car)
+      (find-if #'(lambda (elt)
+                   (member elt elements :key #'name))
+                *errors* :key #'car)))
 
 (defun map-error-type-to-class (type)
   (case type
@@ -323,30 +378,175 @@ cl-xmpp-created data and access it that way instead.")
     (:cancel (find-class 'xmpp-protocol-error-cancel))
     (:wait (find-class 'xmpp-protocol-error-wait))
     (:auth (find-class 'xmpp-protocol-error-auth))
-    (t (format *debug-stream* "~&Unable to find error class for ~w.~&" type)
+    (t (format *debug-stream* "~&Unable to find error class for ~w.~%" type)
        (find-class 'xmpp-protocol-error))))
 
 ;;; XXX: Handle legacy errors
+(defmethod make-legacy-error ((object xml-element))
+  (let* ((code-value (value (get-attribute object :code)))
+         (code       (parse-integer code-value))
+         (data       (get-legacy-error-data-code code))
+         (name       (first  data))
+         (type       (second data))
+         (text       name)
+         (class      (map-error-type-to-class type)))
+    (make-instance class
+      :xml-element object
+      :code        code
+      :name        name
+      :text        text)))  
+
 (defmethod make-error ((object xml-element))
-  (let ((code-value (value (get-attribute object :code)))
-	(code)
-	(name)
-	(type)
-	(class))
-    ; Slightly verbose but there are still cases I have not
-    ; addressed (and have no examples of, any more) so I'm going
-    ; to leave it like this for now.   
-    (if code-value
-	(let* ((code-number (parse-integer code-value))
-	       (data (get-error-data-code code-number)))
-	  (setq code code-number)
-	  (setq name (first data))
-	  (setq type (second data))
-	  (setq class (map-error-type-to-class type)))
-      (let* ((name (name (first (elements object))))
-	     (data (get-error-data-name name)))
-	(format *debug-stream* "~&Name: ~a~&" name)
-	(setq code (first data))
-	(setq type (second data))
-	(setq class (map-error-type-to-class type))))
-    (make-instance class :code code :name name :xml-element object)))
+  "Handle errors as defined in:
+     XEP-0086 for legacy errors
+     RFC-3920 for current standard
+   Attempts to provide the proper mappings to bridge the two."
+  (if (get-attribute object :code)
+      (make-legacy-error object)
+    ;; Slightly verbose but there are still cases I have not
+    ;; addressed (and have no examples of, any more) so I'm going
+    ;; to leave it like this for now.
+    (let* ((elements  (elements object))
+           ;; KC: Fixed this.   Previous code looked at the first element
+           ;; which doesn't have to be the condition.
+           (condition (find-error-data    elements))
+           (text-elt  (get-element object :\#text))
+           (text      (and text-elt (data text-elt)))
+           (name      (first condition))
+           (type      (second condition))
+           (code      (third condition))
+           (class     (map-error-type-to-class type)))
+      (make-instance class
+        :xml-element object
+        :code        code
+        :name        name
+        :text        text))))
+
+;;<iq from='darkcave@macbeth.shakespeare.lit'
+;;    id='voice2'
+;;    to='crone1@shakespeare.lit/desktop'
+;;    type='result'/>
+
+(defclass simple-result (event)
+  ((node
+    :accessor node
+    :initarg :node
+    :initform nil)
+   (to
+    :accessor to
+    :initarg :to
+    :initform nil)
+   (from
+    :accessor from
+    :initarg :from
+    :initform nil)
+   (id
+    :accessor id
+    :initarg :id
+    :initform nil)
+   (type
+    :accessor type-
+    :initarg :type
+    :initform nil)
+   (items
+    :accessor items
+    :initarg :items
+    :initform nil)))
+
+(defmethod print-object ((object simple-result) stream)
+  "Print the object for the Lisp reader."
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "node: ~a to:~a from:~a id:~a type:~a items: ~a"
+            (node object)
+            (to object)
+            (from object)
+            (id object)
+            (type- object)
+            (length (items object)))))
+
+(defmethod make-simple-result ((object xml-element))
+  (let* ((query     (first (get-elements object :query)))
+         (item-list (and query (get-elements query :item))))
+    (make-instance 'simple-result
+      :xml-element object
+      :node  (value (get-attribute query :node))
+      :to    (value (get-attribute object :to))
+      :from  (value (get-attribute object :from))
+      :id    (value (get-attribute object :id))
+      :type  (value (get-attribute object :type))
+      :items (mapcar #'make-item item-list))))
+
+#|
+
+<message
+    from='darkcave@macbeth.shakespeare.lit'
+    to='hecate@shakespeare.lit'>
+  <body>You have been invited to darkcave@macbeth by crone1@shakespeare.lit.</body>
+  <x xmlns='http://jabber.org/protocol/muc#user'>
+    <invite from='crone1@shakespeare.lit'>
+      <reason>
+        Hey Hecate, this is the place for all good witches!
+      </reason>
+    </invite>
+    <password>cauldronburn</password>
+  </x>
+</message>
+
+|#
+
+(defclass invitation (message)
+  ((chatroom
+    :accessor chatroom
+    :initarg :chatroom
+    :initform nil)
+   (password
+    :accessor password
+    :initarg :password
+    :initform nil)
+   (reason
+    :accessor reason
+    :initarg :reason
+    :initform nil)))
+
+
+(defmethod print-object ((object invitation) stream)
+  "Print the object for the Lisp reader."
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "to:~a from:~a id:~a type:~a"
+            (to       object)
+            (from     object)
+            (id       object)
+            (type-    object)
+            (chatroom object)
+            (password object)
+            (reason   object))))
+
+
+(defconstant +invitation-node+ "http://jabber.org/protocol/muc#user")
+
+
+(defmethod get-invitation ((object xml-element))
+  (let ((x-elements (get-elements object :x)))
+    (find-if #'(lambda (element)
+                 (let ((attr (get-attribute element :xmlns)))
+                   (and attr (string-equal (value attr) +invitation-node+))))
+              x-elements)))
+
+
+(defmethod make-invitation ((object xml-element))
+  (let* ((x-element (get-invitation object))
+         (invite    (and x-element (get-element x-element :invite)))
+         (reason    (and invite    (get-element invite    :reason)))
+         (password  (and x-element (get-element x-element :password)))
+         (body      (get-element object :body)))
+    (make-instance 'invitation
+      :xml-element object
+      :to       (value (get-attribute object :to))
+      :from     (or (and invite (value (get-attribute invite :from)))
+                    (value (get-attribute object :from)))
+      :id       (value (get-attribute object :id))
+      :type     (value (get-attribute object :type))
+      :body     (and body (data  (get-element body :\#text)))
+      :chatroom (value (get-attribute object :from))
+      :password (and password (data  (get-element password :\#text)))
+      :reason   (and reason   (data  (get-element reason   :\#text))))))

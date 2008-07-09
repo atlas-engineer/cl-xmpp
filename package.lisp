@@ -1,4 +1,4 @@
-;;;; $Id: package.lisp,v 1.11 2005/11/17 21:51:16 eenge Exp $
+;;;; $Id: package.lisp,v 1.7 2007/12/17 09:09:06 kcrosbie Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/package.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -17,7 +17,7 @@
      :receive-stanza-loop :begin-xml-stream :end-xml-stream :with-iq
      :with-iq-query :connection :username :mechanisms :features
      :feature-p :feature-required-p :mechanism-p :receive-stanza
-     :server-stream
+     :server-stream :stop-stanza-loop
      ;; only available if you've loaded cl-xmpp-tls
      :connect-tls :connect-tls2
      ;; xmpp commands
@@ -48,9 +48,28 @@
      :identity-
      :disco :identities
      :disco-items :items
-     :item :jid
-     :message :to :from :body
+     :item :jid :id
+     :message :to :from :body :subject :type- :chatroom :password
+     :simple-result :invitation
      ;; user-hooks for handling events
      :handle
      ;; variables
-     :*default-port :*default-hostname* :*errors* :*debug-stream*)))
+     :*default-port :*default-hostname* :*errors* :*debug-stream*
+     ;; multi-user-chat
+     :create-chatroom
+     :join-chatroom
+     :leave-chatroom
+     :invite-to-chatroom
+     :kick-from-chatroom
+     :grant-room-membership
+     :revoke-room-membership
+     :broadcast-room
+     :set-chatroom-subject
+     :default-room-config
+     :destroy-chatroom
+     :revoke-voice
+     :get-online-users
+     ;; errors
+     :server-disconnect
+     
+     )))

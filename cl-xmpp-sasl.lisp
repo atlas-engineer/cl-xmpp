@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.11 2005/11/17 21:51:15 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.12 2008/07/09 19:53:19 ehuelsmann Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -9,6 +9,9 @@
   (if (eq reply :authentication-successful)
       (progn
 	(begin-xml-stream connection :xml-identifier nil)
+        ;; Clean the server-source.
+        ;; See https://support.process-one.net/browse/EJAB-455
+        (setf (server-source connection) nil)
 	(receive-stanza connection) ; stream
 	(receive-stanza connection) ; features
 	reply) 

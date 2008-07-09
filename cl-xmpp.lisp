@@ -1,9 +1,13 @@
-;;;; $Id: cl-xmpp.lisp,v 1.32 2008/07/09 19:51:17 ehuelsmann Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.33 2008/07/09 19:58:50 ehuelsmann Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
 
 (in-package :xmpp)
+
+;; Define our own error condition for server disconnections
+(define-condition server-disconnect (simple-condition)
+  ())
 
 (defclass connection ()
   ((server-stream
@@ -47,7 +51,14 @@ will accept.")
    (port
     :accessor port
     :initarg :port
-    :initform *default-port*))
+    :initform *default-port*)
+   (stanza-thread
+    :accessor stanza-thread
+    :initform nil)
+   (stanza-callback
+    :accessor stanza-callback
+    :initarg  :stanza-callback
+    :initform 'default-stanza-callback))
   (:documentation "A TCP connection between this XMPP client and
 an, assumed, XMPP compliant server.  The connection does not
 know whether or not the XML stream has been initiated nor whether
@@ -67,7 +78,7 @@ details are left to the programmer."))
 ;;; connect-tls to be the same.
 (defun connect (&key (hostname *default-hostname*) (port *default-port*) 
                      (receive-stanzas t) (begin-xml-stream t) jid-domain-part
-                     (class 'connection))
+                     (class 'connection) stanza-callback)
   "Open TCP connection to hostname.
 
 By default this will set up the complete XML stream and receive the initial
@@ -91,7 +102,8 @@ after you've connected."
                                     :jid-domain-part jid-domain-part
                                     :server-stream stream
                                     :hostname hostname
-                                    :port port)))
+                                    :port            port
+                                    :stanza-callback stanza-callback)))
     (when begin-xml-stream
       (begin-xml-stream connection))
     (when receive-stanzas
@@ -202,10 +214,10 @@ nil - feature is support but not required
     (if errorp
 	(make-error errorp)
       (case id
-	(:error (make-error errorp))
+        (:error (make-error object))
 	(:roster_1 (make-roster object))
 	(:reg2 :registration-successful)
-	(:unreg_1 :registration-cancellation-successful)
+        ((:unreg_1 :unreg1) :registration-cancellation-successful)
 	(:change1 :password-changed-successfully)
 	(:auth2 :authentication-successful)
 	(:bind_2 :bind-successful)
@@ -213,14 +225,17 @@ nil - feature is support but not required
 	(t 
 	 (case type
 	   (:get (warn "Don't know how to handle IQ get yet."))
+           (:result 
+            ;; assuming a simple result (no query)
+            (make-simple-result object))
 	   (t
 	    (cond
-	     ((member id '(info1 info2 info3))
+             ((member id '(:info1 :info2 :info3))
 	      (make-disco-info (get-element object :query)))
-	     ((member id '(items1 items2 items3 items4))
+             ((member id '(:items1 :items2 :items3 :items4))
 	      (make-disco-items (get-element object :query)))
 	     (t ;; Assuming an error
-              (make-error (get-element object :error)))))))))))
+              (make-error object))))))))))
 
 (defmethod xml-element-to-event ((connection connection)
 				 (object xml-element) (name (eql :error)))
@@ -279,43 +294,50 @@ nil - feature is support but not required
 ;;; you do please feel free to submit a patch.
 (defmethod xml-element-to-event ((connection connection)
 				 (object xml-element) (name (eql :message)))
-  (make-instance 'message
-                 :xml-element object
-		 :from (value (get-attribute object :from))
-		 :to (value (get-attribute object :to))
-                 :id (value (get-attribute object :id))
-                 :type (value (get-attribute object :type))
-		 :body (data (get-element (get-element object :body) :\#text))))
+  (cond
+   ((get-invitation object)
+    (make-invitation object))
+   (t
+    (make-message object))))
+
 
 ;;
 ;; Receive stanzas
 ;;
 
-(defmethod receive-stanza-loop ((connection connection)	&key
-                                (stanza-callback 'default-stanza-callback)
-                                dom-repr)
+(defmethod stop-stanza-loop ((connection connection))
+  (setf (stanza-thread connection) nil))
+
+(defmethod receive-stanza-loop ((connection connection)
+                                &key stanza-callback dom-repr)
   "Reads from connection's stream and parses the XML received
 on-the-go.  As soon as it has a complete element it calls
 the stanza-callback (which by default eventually dispatches
 to HANDLE)."
-  (loop (receive-stanza connection
+  (setf (stanza-thread connection) t)
+  (unwind-protect
+      (loop while (stanza-thread connection)
+          do (receive-stanza connection
 			:stanza-callback stanza-callback
-			:dom-repr dom-repr)))
+                             :dom-repr        dom-repr))
+    (setf (stanza-thread connection) nil)))
 
-(defmethod receive-stanza ((connection connection) &key
-			   (stanza-callback 'default-stanza-callback)
-			   dom-repr)
+
+(defmethod receive-stanza ((connection connection)
+                           &key stanza-callback dom-repr)
   "Returns one stanza.  Hangs until one is received."
-  (let* ((stanza (read-stanza connection))
-	 (tagname (dom:tag-name (dom:document-element stanza))))
-    (cond
-     ((equal tagname "stream:error")
-      (when stanza-callback
-	(car (funcall stanza-callback stanza connection :dom-repr dom-repr)))
-      (error "Received error."))
-     (t
-      (when stanza-callback
-	(car (funcall stanza-callback stanza connection :dom-repr dom-repr)))))))
+  (handler-case
+      (let ((stanza   (read-stanza connection))
+            (callback (or stanza-callback (stanza-callback connection))))
+        (when callback
+          (car (funcall callback stanza connection :dom-repr dom-repr))))
+    ;; Catch the cxml well-formedness-violation and propagate it through as
+    ;; a server-disconnection.   Perhaps this should be a handler bind and
+    ;; should only propagate when the cxml error has :EOF in it...
+    (cxml:well-formedness-violation (condition)
+      (error 'server-disconnect
+             :format-control (princ-to-string condition)))))
+
 
 (defun read-stanza (connection)
   (unless (server-source connection)
@@ -401,7 +423,7 @@ the server again."
 	       (write-sequence (map 'string #'code-char ,xml) *debug-stream*)))
 	 (force-output ,stream)))))
 
-(defmacro with-iq ((connection &key id to (type "get")) &body body)
+(defmacro with-iq ((connection &key id to from (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
   `(with-xml-output (,connection)
      (cxml:with-element "iq"
@@ -409,17 +431,32 @@ the server again."
          (cxml:attribute "id" ,id))
        (when ,to
          (cxml:attribute "to" ,to))
+       (when ,from
+         (cxml:attribute "from" ,from))
        (cxml:attribute "type" ,type)
        ,@body)))
 
-(defmacro with-iq-query ((connection &key xmlns id to node (type "get")) &body body)
+(defmacro with-iq-query ((connection &key xmlns id to from
+                                          node (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
-  `(with-iq (,connection :id ,id :type ,type :to ,to)
+  `(with-iq (,connection :id ,id :type ,type :to ,to :from ,from)
      (cxml:with-element "query"
        (cxml:attribute "xmlns" ,xmlns)
          (when ,node
            (cxml:attribute "node" ,node))
          ,@body)))
+
+
+(defmacro with-iq-command ((connection &key xmlns id to from node action (type "get")) &body body)
+  "Macro to make it easier to write COMMANDs."
+  `(with-iq (,connection :id ,id :type ,type :to ,to :from ,from)
+     (cxml:with-element "command"
+       (cxml:attribute "xmlns" ,xmlns)
+       (when ,action
+         (cxml:attribute "action" ,action))
+       (when ,node
+         (cxml:attribute "node" ,node))
+       ,@body)))
 
 ;;
 ;; Discovery
@@ -470,9 +507,7 @@ the server again."
 call presence on your behalf if the authentication was successful."
   (setf (username connection) username)
   (let ((result (funcall (get-auth-method mechanism) connection username password resource)))
-    (if (and (eq result :authentication-successful)
-	     bind-et-al)
-	(progn
+    (when (and (eq result :authentication-successful) bind-et-al)
 	  (when (feature-p connection :bind)
 	    (bind connection resource)
 	    (receive-stanza connection))
@@ -481,7 +516,9 @@ call presence on your behalf if the authentication was successful."
 	    (receive-stanza connection))
 	  (when send-presence
 	    (presence connection)))
-      result)))
+    ;; KC: Always return the result of the auth.   Previously the result of the
+    ;; last executed form was returned, which is arbitrary
+    result))
 
 (defmethod %plain-auth% ((connection connection) username password resource)
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
@@ -593,4 +630,3 @@ call presence on your behalf if the authentication was successful."
   (with-iq-query (connection :id "getlist2" :xmlns "jabber:iq:privacy")
    (cxml:with-element "list"
     (cxml:attribute "name" name))))
-
