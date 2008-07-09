@@ -1,4 +1,4 @@
-;;;; $Id: result.lisp,v 1.7 2007/12/19 10:42:37 kcrosbie Exp $
+;;;; $Id: result.lisp,v 1.14 2008/07/09 21:02:40 ehuelsmann Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/result.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -522,7 +522,7 @@ cl-xmpp-created data and access it that way instead.")
             (reason   object))))
 
 
-(defconstant +invitation-node+ "http://jabber.org/protocol/muc#user")
+(defparameter +invitation-node+ "http://jabber.org/protocol/muc#user")
 
 
 (defmethod get-invitation ((object xml-element))
