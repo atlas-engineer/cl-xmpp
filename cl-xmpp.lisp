@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.30 2007/03/04 04:26:23 jstecklina Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.31 2007/03/05 17:38:35 jstecklina Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -320,7 +320,8 @@ to HANDLE)."
   (unless (server-source connection)
     (setf (server-source connection)
           (cxml:make-source
-	   (cxml:make-xstream (make-slow-stream (server-stream connection))
+	   (cxml:make-xstream (server-stream connection)
+			      :speed 1
 			      :name
 			      (cxml::make-stream-name
 			       :entity-name "stanza"
@@ -391,7 +392,8 @@ the server again."
 	(stream (gensym "stream")))
     `(let ((,stream (server-stream ,connection)))
        (prog1
-	   (let ((,xml (cxml:with-xml-output (cxml:make-octet-vector-sink)
+	   (let ((,xml (cxml:with-xml-output
+			   (cxml:make-octet-vector-sink :canonical 1)
                         ,@body)))
 	     (write-sequence (vector-to-array ,xml) ,stream)
 	     (when *debug-stream*
