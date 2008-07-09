@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp-sasl.lisp,v 1.10 2005/11/17 20:56:38 eenge Exp $
+;;;; $Id: cl-xmpp-sasl.lisp,v 1.11 2005/11/17 21:51:15 eenge Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp-sasl.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -68,9 +68,18 @@ stanza received from the server."
                   (if (eq (name second-challenge) :challenge)
                       (progn
                         (send-second-response connection)
-			(receive-stanza connection))
+			(when (eq (receive-stanza connection)
+				  :authentication-successful)
+			  (begin-xml-stream connection)
+			  (reset-stream connection)))
 		    second-challenge)))))
 	initial-challenge))))
+
+(defun reset-stream (connection)
+  (setf (server-source connection)
+	(cxml:make-source
+	 (cxml::source-xstream (server-source connection))
+	 :buffering nil)))
 
 (defmethod initiate-sasl-authentication ((connection connection) mechanism sasl-client)
   (with-xml-stream (stream connection)
