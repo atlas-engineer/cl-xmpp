@@ -1,4 +1,4 @@
-;;;; $Id: cl-xmpp.lisp,v 1.33 2008/07/09 19:58:50 ehuelsmann Exp $
+;;;; $Id: cl-xmpp.lisp,v 1.34 2008/07/09 21:02:40 ehuelsmann Exp $
 ;;;; $Source: /project/cl-xmpp/cvsroot/cl-xmpp/cl-xmpp.lisp,v $
 
 ;;;; See the LICENSE file for licensing information.
@@ -521,6 +521,7 @@ call presence on your behalf if the authentication was successful."
     result))
 
 (defmethod %plain-auth% ((connection connection) username password resource)
+  (warn "RFC 3920 deprecated :PLAIN auth; use :SASL-PLAIN instead.")
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))
    (cxml:with-element "password" (cxml:text password))
@@ -530,6 +531,7 @@ call presence on your behalf if the authentication was successful."
 (add-auth-method :plain '%plain-auth%)
 
 (defmethod %digest-md5-auth% ((connection connection) username password resource)
+  (warn "RFC 3920 deprecated :DIGEST-MD5 auth; use :SASL-DIGEST-MD5 instead.")
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
    (cxml:with-element "username" (cxml:text username))
    (if (stream-id connection)
