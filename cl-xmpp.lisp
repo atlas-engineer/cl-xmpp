@@ -326,17 +326,10 @@ to HANDLE)."
 (defmethod receive-stanza ((connection connection)
                            &key stanza-callback dom-repr)
   "Returns one stanza.  Hangs until one is received."
-  (handler-case
-      (let ((stanza   (read-stanza connection))
-            (callback (or stanza-callback (stanza-callback connection))))
-        (when callback
-          (car (funcall callback stanza connection :dom-repr dom-repr))))
-    ;; Catch the cxml well-formedness-violation and propagate it through as
-    ;; a server-disconnection.   Perhaps this should be a handler bind and
-    ;; should only propagate when the cxml error has :EOF in it...
-    (cxml:well-formedness-violation (condition)
-      (error 'server-disconnect
-             :format-control (princ-to-string condition)))))
+  (let ((stanza   (read-stanza connection))
+        (callback (or stanza-callback (stanza-callback connection))))
+    (when callback
+      (car (funcall callback stanza connection :dom-repr dom-repr)))))
 
 
 (defun read-stanza (connection)

@@ -7,10 +7,16 @@
 
 (eval-when (:execute :load-toplevel :compile-toplevel)
   (defpackage :cl-xmpp
-      (:use :cl
-	    #+allegro :socket
-	    #+openmcl :ccl)
-      (:nicknames :xmpp)
+    (:use :cl
+     #+allegro :socket
+          #+openmcl :ccl)
+    (:nicknames :xmpp)
+    (:local-nicknames
+     (:cxml :fxml)
+     (:cxml-dom :fxml-dom)
+     (:dom :fxml.dom)
+     (:klacks :fxml.klacks)
+     (:sax :fxml.sax))
     (:export
      ;; connection-related
      :connect :disconnect :stream- :hostname :port :connectedp
@@ -70,6 +76,4 @@
      :revoke-voice
      :get-online-users
      ;; errors
-     :server-disconnect
-     
-     )))
+     :server-disconnect)))
