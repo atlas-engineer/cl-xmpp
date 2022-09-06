@@ -98,12 +98,13 @@ after you've connected."
   (let* ((stream (usocket:socket-stream
 		   (usocket:socket-connect
                           hostname port :element-type '(unsigned-byte 8))))
-         (connection (make-instance class
-                                    :jid-domain-part jid-domain-part
-                                    :server-stream stream
-                                    :hostname hostname
-                                    :port            port
-                                    :stanza-callback stanza-callback)))
+         (connection (apply #'make-instance class
+                            :jid-domain-part jid-domain-part
+                            :server-stream stream
+                            :hostname hostname
+                            :port port
+                            (when stanza-callback
+                              (list :stanza-callback stanza-callback)))))
     (when begin-xml-stream
       (begin-xml-stream connection))
     (when receive-stanzas
