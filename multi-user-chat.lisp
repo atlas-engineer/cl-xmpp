@@ -49,7 +49,7 @@
       (cxml:attribute "to"   room)
       (cxml:attribute "from" from)
       (cxml:attribute "type" "unavailable"))))
-  
+
 ;;<message
 ;;    from='crone1@shakespeare.lit/desktop'
 ;;    to='darkcave@macbeth.shakespeare.lit'>
@@ -97,7 +97,7 @@
         (cxml:attribute "role" "none")
         (cxml:with-element "reason"
           (cxml:text reason))))))
-                               
+
 
 ;;<iq from='crone1@shakespeare.lit/desktop'
 ;;    id='member1'
@@ -110,7 +110,7 @@
 ;;</iq>
 
 (defmethod set-room-affiliation ((connection connection)
-                                   &key room to affiliation)
+                                 &key room to affiliation)
   (with-xml-output (connection)
     (with-iq-query (connection :to room :type "set"
                                :xmlns "http://jabber.org/protocol/muc#admin")
@@ -163,7 +163,7 @@
         (cxml:attribute "xmlns" "jabber:x:data")
         (cxml:attribute "type" "submit")
         (with-form-field "hidden" "FORM_TYPE" 
-                         "http://jabber.org/protocol/muc#roomconfig")
+            "http://jabber.org/protocol/muc#roomconfig")
         (with-form-field "text-single" "muc#roomconfig_roomname")
         (with-form-field "boolean" "muc#roomconfig_persistentroom" "0")
         (with-form-field "boolean" "muc#roomconfig_publicroom" "0")

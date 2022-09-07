@@ -14,8 +14,8 @@
         (setf (server-source connection) nil)
         (receive-stanza connection) ; stream
         (receive-stanza connection) ; features
-        reply)G
-      reply))
+        reply)
+        reply))
 
 (defmethod %sasl-plain% ((connection connection) username password resource)
   (let* ((mechanism "PLAIN")

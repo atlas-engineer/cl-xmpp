@@ -70,15 +70,15 @@ details are left to the programmer."))
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "to ~A:~A" (hostname object) (port object))
     (if (connectedp object)
-	(format stream " (open)")
-      (format stream " (closed)"))))
+        (format stream " (open)")
+        (format stream " (closed)"))))
 
 ;;; Note: If you change the default value of either receive-stanzas
 ;;; or begin-xml-stream you must update that value in cl-xmpp-tls.lisp's
 ;;; connect-tls to be the same.
 (defun connect (&key (hostname *default-hostname*) (port *default-port*) 
-                     (receive-stanzas t) (begin-xml-stream t) jid-domain-part
-                     (class 'connection) stanza-callback)
+                  (receive-stanzas t) (begin-xml-stream t) jid-domain-part
+                  (class 'connection) stanza-callback)
   "Open TCP connection to hostname.
 
 By default this will set up the complete XML stream and receive the initial
@@ -96,8 +96,8 @@ but I'm trying not to optimize too early plus if you are going to
 do in-band registration (JEP0077) then you don't have a JID until
 after you've connected."
   (let* ((stream (usocket:socket-stream
-		   (usocket:socket-connect
-                          hostname port :element-type '(unsigned-byte 8))))
+                  (usocket:socket-connect
+                   hostname port :element-type '(unsigned-byte 8))))
          (connection (apply #'make-instance class
                             :jid-domain-part jid-domain-part
                             :server-stream stream
@@ -143,16 +143,16 @@ nil - feature is support but not required
 :not-supported - feature is not supported"
   (let ((feature (feature-p connection feature-name)))
     (if feature
-	(if (get-element feature :required)
-	    t
-	  nil)
-      :not-supported)))
+        (if (get-element feature :required)
+            t
+            nil)
+        :not-supported)))
 
 (defmethod mechanism-p ((connection connection) mechanism-name)
   (dolist (mechanism (mechanisms connection))
     (let ((name (intern (data (get-element mechanism :\#text)) :keyword)))
       (when (eq name mechanism-name)
-	(return-from mechanism-p mechanism)))))
+        (return-from mechanism-p mechanism)))))
 
 ;;
 ;; Handle
@@ -176,28 +176,28 @@ nil - feature is support but not required
 (defmethod parse-result ((connection connection) (document cxml-dom::document))
   (let (objects)
     (dom:map-node-list #'(lambda (node)
-			   (push (parse-result connection node) objects))
-		       (dom:child-nodes document))
+                           (push (parse-result connection node) objects))
+                       (dom:child-nodes document))
     objects))
 
 (defmethod parse-result ((connection connection) (attribute cxml-dom::attribute))
   (let* ((name (ensure-keyword (dom:node-name attribute)))
-	 (value (dom:value attribute))
-	 (xml-attribute
-	  (make-instance 'xml-attribute
-			 :name name :value value :node attribute)))
+         (value (dom:value attribute))
+         (xml-attribute
+           (make-instance 'xml-attribute
+                          :name name :value value :node attribute)))
     xml-attribute))
 
 (defmethod parse-result ((connection connection) (node cxml-dom::character-data))
   (let* ((name (ensure-keyword (dom:node-name node)))
-	 (data (dom:data node))
-	 (xml-element (make-instance 'xml-element
-				     :name name :data data :node node)))
+         (data (dom:data node))
+         (xml-element (make-instance 'xml-element
+                                     :name name :data data :node node)))
     xml-element))
 
 (defmethod parse-result ((connection connection) (node cxml-dom::node))
   (let* ((name (ensure-keyword (dom:node-name node)))
-	 (xml-element (make-instance 'xml-element :name name :node node)))
+         (xml-element (make-instance 'xml-element :name name :node node)))
     (dom:do-node-list (child (dom:child-nodes node))
       (push (parse-result connection child) (elements xml-element)))
     xml-element))
@@ -210,60 +210,60 @@ nil - feature is support but not required
 
 (defmethod xml-element-to-event ((connection connection) (object xml-element) (name (eql :iq)))
   (let ((id (ensure-keyword (value (get-attribute object :id))))
-	(type (ensure-keyword (value (get-attribute object :type))))
-	(errorp (get-element object :error)))
+        (type (ensure-keyword (value (get-attribute object :type))))
+        (errorp (get-element object :error)))
     (if errorp
-	(make-error errorp)
-      (case id
-        (:error (make-error object))
-	(:roster_1 (make-roster object))
-	(:reg2 :registration-successful)
-        ((:unreg_1 :unreg1) :registration-cancellation-successful)
-	(:change1 :password-changed-successfully)
-	(:auth2 :authentication-successful)
-	(:bind_2 :bind-successful)
-	(:session_1 :session-initiated)
-	(t 
-	 (case type
-	   (:get (warn "Don't know how to handle IQ get yet."))
-           (:result 
-            ;; assuming a simple result (no query)
-            (make-simple-result object))
-	   (t
-	    (cond
-             ((member id '(:info1 :info2 :info3))
-	      (make-disco-info (get-element object :query)))
-             ((member id '(:items1 :items2 :items3 :items4))
-	      (make-disco-items (get-element object :query)))
-	     (t ;; Assuming an error
-              (make-error object))))))))))
+        (make-error errorp)
+        (case id
+          (:error (make-error object))
+          (:roster_1 (make-roster object))
+          (:reg2 :registration-successful)
+          ((:unreg_1 :unreg1) :registration-cancellation-successful)
+          (:change1 :password-changed-successfully)
+          (:auth2 :authentication-successful)
+          (:bind_2 :bind-successful)
+          (:session_1 :session-initiated)
+          (t 
+           (case type
+             (:get (warn "Don't know how to handle IQ get yet."))
+             (:result 
+              ;; assuming a simple result (no query)
+              (make-simple-result object))
+             (t
+              (cond
+                ((member id '(:info1 :info2 :info3))
+                 (make-disco-info (get-element object :query)))
+                ((member id '(:items1 :items2 :items3 :items4))
+                 (make-disco-items (get-element object :query)))
+                (t ;; Assuming an error
+                 (make-error object))))))))))
 
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :error)))
+                                 (object xml-element) (name (eql :error)))
   (make-error object))
 
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :stream\:error)))
+                                 (object xml-element) (name (eql :stream\:error)))
   (make-error object))
 
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :stream\:stream)))
+                                 (object xml-element) (name (eql :stream\:stream)))
   (setf (stream-id connection) (value (get-attribute object :id)))
   object)
 
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :stream\:features)))
+                                 (object xml-element) (name (eql :stream\:features)))
   (dolist (element (elements object))
     (if (eq (name element) :mechanisms)
-	(setf (mechanisms connection) (elements element))
-      (push element (features connection))))
+        (setf (mechanisms connection) (elements element))
+        (push element (features connection))))
   object)
 
 ;;; XXX: Not sure this is correct.  Could perhaps get a success element
 ;;; for other things than just authentication.  I can't remember right
 ;;; now but I should check.
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :success)))
+                                 (object xml-element) (name (eql :success)))
   :authentication-successful)
 
 (defmethod xml-element-to-event ((connection connection) (object xml-element) name)
@@ -278,28 +278,28 @@ nil - feature is support but not required
 
 ;;; XXX: Is the ask attribute of the <presence/> element part of the RFC/JEP?
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :presence)))
+                                 (object xml-element) (name (eql :presence)))
   (let ((show (get-element object :show)))
     (when show
       (setq show (data (get-element show :\#text))))
     (make-instance 'presence
                    :xml-element object
-		   :from (value (get-attribute object :from))
-		   :to (value (get-attribute object :to))
-		   :show show
-		   :type- (value (get-attribute object :type)))))
+                   :from (value (get-attribute object :from))
+                   :to (value (get-attribute object :to))
+                   :show show
+                   :type- (value (get-attribute object :type)))))
 
 ;;; XXX: Add support for the <thread/> element.  Also note that
 ;;; there may be an XHTML version of the body available in the
 ;;; original node but as of right now I don't care about it.  If
 ;;; you do please feel free to submit a patch.
 (defmethod xml-element-to-event ((connection connection)
-				 (object xml-element) (name (eql :message)))
+                                 (object xml-element) (name (eql :message)))
   (cond
-   ((get-invitation object)
-    (make-invitation object))
-   (t
-    (make-message object))))
+    ((get-invitation object)
+     (make-invitation object))
+    (t
+     (make-message object))))
 
 
 ;;
@@ -317,10 +317,10 @@ the stanza-callback (which by default eventually dispatches
 to HANDLE)."
   (setf (stanza-thread connection) t)
   (unwind-protect
-      (loop while (stanza-thread connection)
-          do (receive-stanza connection
-			:stanza-callback stanza-callback
-                             :dom-repr        dom-repr))
+       (loop while (stanza-thread connection)
+             do (receive-stanza connection
+                                :stanza-callback stanza-callback
+                                :dom-repr        dom-repr))
     (setf (stanza-thread connection) nil)))
 
 
@@ -337,36 +337,36 @@ to HANDLE)."
   (unless (server-source connection)
     (setf (server-source connection)
           (cxml:make-source
-	   (cxml:make-xstream (server-stream connection)
-			      :speed 1
-			      :name
-			      (cxml::make-stream-name
-			       :entity-name "stanza"
-			       :entity-kind :main
-			       :uri nil))
-	   :buffering nil)))
+           (cxml:make-xstream (server-stream connection)
+                              :speed 1
+                              :name
+                              (cxml::make-stream-name
+                               :entity-name "stanza"
+                               :entity-kind :main
+                               :uri nil))
+           :buffering nil)))
   (force-output (server-stream connection))
   (let ((source (server-source connection)))
     (loop
       (multiple-value-bind (key uri lname qname)
-	  (klacks:peek-next source)
-	(when (eq key :start-element)
-	  (return
-	    (if (and (equal uri "http://etherx.jabber.org/streams")
-		     (equal lname "stream"))
-		;; Create an element for DOM-TO-EVENT so we don't have to have
-		;; any specialized code just to handle stream:stream.
-		(let* ((document (cxml-dom:create-document))
-		       (element (dom:create-element document qname)))
-		  (dom:append-child document element)
-		  (dolist (attribute (klacks:list-attributes source))
-		    (let ((name (sax::attribute-qname attribute))
-			  (value (sax::attribute-value attribute)))
-		      (dom:set-attribute element name value)))
-		  document)
-		(klacks:serialize-element source
-					  (cxml-dom:make-dom-builder)))))))))
- 
+          (klacks:peek-next source)
+        (when (eq key :start-element)
+          (return
+            (if (and (equal uri "http://etherx.jabber.org/streams")
+                     (equal lname "stream"))
+                ;; Create an element for DOM-TO-EVENT so we don't have to have
+                ;; any specialized code just to handle stream:stream.
+                (let* ((document (cxml-dom:create-document))
+                       (element (dom:create-element document qname)))
+                  (dom:append-child document element)
+                  (dolist (attribute (klacks:list-attributes source))
+                    (let ((name (sax::attribute-qname attribute))
+                          (value (sax::attribute-value attribute)))
+                      (dom:set-attribute element name value)))
+                  document)
+                (klacks:serialize-element source
+                                          (cxml-dom:make-dom-builder)))))))))
+
 (defmacro with-xml-stream ((stream connection) &body body)
   "Helper macro to make it easy to control outputting XML
 to the debug stream.  It's not strictly /with/ xml-stream
@@ -393,29 +393,29 @@ so it should probably be renamed."
   "Begin XML stream.  This should be the first thing to happen on a
 newly connected connection."
   (with-xml-stream (stream connection)
-   (when xml-identifier
-     (xml-output stream "<?xml version='1.0' ?>"))
-   (xml-output stream (fmt "<stream:stream to='~a' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>" (or (jid-domain-part connection) (hostname connection))))))
+    (when xml-identifier
+      (xml-output stream "<?xml version='1.0' ?>"))
+    (xml-output stream (fmt "<stream:stream to='~a' xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>" (or (jid-domain-part connection) (hostname connection))))))
 
 (defmethod end-xml-stream ((connection connection))
   "Closes the XML stream.  At this point you'd have to
 call BEGIN-XML-STREAM if you wished to communicate with
 the server again."
   (with-xml-stream (stream connection)
-   (xml-output stream "</stream:stream>")))
+    (xml-output stream "</stream:stream>")))
 
 (defmacro with-xml-output ((connection) &body body)
   (let ((xml (gensym "xml"))
-	(stream (gensym "stream")))
+        (stream (gensym "stream")))
     `(let ((,stream (server-stream ,connection)))
        (prog1
-	   (let ((,xml (cxml:with-xml-output
-			   (cxml:make-octet-vector-sink :canonical 1)
-                        ,@body)))
-	     (write-sequence (vector-to-array ,xml) ,stream)
-	     (when *debug-stream*
-	       (write-sequence (map 'string #'code-char ,xml) *debug-stream*)))
-	 (force-output ,stream)))))
+           (let ((,xml (cxml:with-xml-output
+                           (cxml:make-octet-vector-sink :canonical 1)
+                         ,@body)))
+             (write-sequence (vector-to-array ,xml) ,stream)
+             (when *debug-stream*
+               (write-sequence (map 'string #'code-char ,xml) *debug-stream*)))
+         (force-output ,stream)))))
 
 (defmacro with-iq ((connection &key id to from (type "get")) &body body)
   "Macro to make it easier to write IQ stanzas."
@@ -431,14 +431,14 @@ the server again."
        ,@body)))
 
 (defmacro with-iq-query ((connection &key xmlns id to from
-                                          node (type "get")) &body body)
+                                       node (type "get")) &body body)
   "Macro to make it easier to write QUERYs."
   `(with-iq (,connection :id ,id :type ,type :to ,to :from ,from)
      (cxml:with-element "query"
        (cxml:attribute "xmlns" ,xmlns)
-         (when ,node
-           (cxml:attribute "node" ,node))
-         ,@body)))
+       (when ,node
+         (cxml:attribute "node" ,node))
+       ,@body)))
 
 
 (defmacro with-iq-command ((connection &key xmlns id to from node action (type "get")) &body body)
@@ -458,12 +458,12 @@ the server again."
 
 (defmethod discover ((connection connection) &key (type :info) to node)
   (let ((xmlns
-	 (case type
-	   (:info "http://jabber.org/protocol/disco#info")
-	   (:items "http://jabber.org/protocol/disco#items")
-	   (t (error "Unknown type: ~a (Please choose between :info and :items)" type)))))
+          (case type
+            (:info "http://jabber.org/protocol/disco#info")
+            (:items "http://jabber.org/protocol/disco#items")
+            (t (error "Unknown type: ~a (Please choose between :info and :items)" type)))))
     (with-iq-query (connection :id "info1" :xmlns xmlns :to to :node node))))
-  
+
 ;;
 ;; Basic operations
 ;;
@@ -473,30 +473,30 @@ the server again."
 
 (defmethod register ((connection connection) username password name email)
   (with-iq-query (connection :id "reg2" :type "set" :xmlns "jabber:iq:register")
-   (cxml:with-element "username" (cxml:text username))
+    (cxml:with-element "username" (cxml:text username))
     (cxml:with-element "password" (cxml:text password))
     (cxml:with-element "name" (cxml:text name))
     (cxml:with-element "email" (cxml:text email))))
 
 (defmethod cancel-registration ((connection connection))
   (with-iq-query (connection :id "unreg1" :type "set" :xmlns "jabber:iq:register")
-   (cxml:with-element "remove")))
+    (cxml:with-element "remove")))
 
 (defmethod change-password ((connection connection) new-password)
   (with-iq-query (connection :id "change1" :type "set" :xmlns "jabber:iq:register")
-   (cxml:with-element "username"
-    (cxml:text (username connection)))
-   (cxml:with-element "password"
-    (cxml:text new-password))))
+    (cxml:with-element "username"
+      (cxml:text (username connection)))
+    (cxml:with-element "password"
+      (cxml:text new-password))))
 
 (defmethod auth-requirements ((connection connection) username)
   (with-iq-query (connection :id "auth1" :xmlns "jabber:iq:auth")
-   (cxml:with-element "username" (cxml:text username))))
+    (cxml:with-element "username" (cxml:text username))))
 
 (defmethod auth ((connection connection) username password resource &key
-		 (mechanism :plain)
-		 (bind-et-al t)
-		 (send-presence t))
+                                                                      (mechanism :plain)
+                                                                      (bind-et-al t)
+                                                                      (send-presence t))
   "If bind-et-al is T this operator will bind, create a session and
 call presence on your behalf if the authentication was successful."
   (setf (username connection) username)
@@ -517,9 +517,9 @@ call presence on your behalf if the authentication was successful."
 (defmethod %plain-auth% ((connection connection) username password resource)
   (warn "RFC 3920 deprecated :PLAIN auth; use :SASL-PLAIN instead.")
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
-   (cxml:with-element "username" (cxml:text username))
-   (cxml:with-element "password" (cxml:text password))
-   (cxml:with-element "resource" (cxml:text resource)))
+    (cxml:with-element "username" (cxml:text username))
+    (cxml:with-element "password" (cxml:text password))
+    (cxml:with-element "resource" (cxml:text resource)))
   (receive-stanza connection))
 
 (add-auth-method :plain '%plain-auth%)
@@ -527,52 +527,52 @@ call presence on your behalf if the authentication was successful."
 (defmethod %digest-md5-auth% ((connection connection) username password resource)
   (warn "RFC 3920 deprecated :DIGEST-MD5 auth; use :SASL-DIGEST-MD5 instead.")
   (with-iq-query (connection :id "auth2" :type "set" :xmlns "jabber:iq:auth")
-   (cxml:with-element "username" (cxml:text username))
-   (if (stream-id connection)
-       (cxml:with-element "digest"
-	(cxml:text (make-digest-password (stream-id connection) password)))
-     (error "stream-id on ~a not set, cannot make digest password" connection))
-   (cxml:with-element "resource" (cxml:text resource)))
+    (cxml:with-element "username" (cxml:text username))
+    (if (stream-id connection)
+        (cxml:with-element "digest"
+          (cxml:text (make-digest-password (stream-id connection) password)))
+        (error "stream-id on ~a not set, cannot make digest password" connection))
+    (cxml:with-element "resource" (cxml:text resource)))
   (receive-stanza connection))
 
 (add-auth-method :digest-md5 '%digest-md5-auth%)
 
 (defmethod presence ((connection connection) &key type to status show priority)
   (with-xml-output (connection)
-   (cxml:with-element "presence"
-    (when type
-      (cxml:attribute "type" type))
-    (when to
-      (cxml:attribute "to" to))
-    (when status
-      (cxml:with-element "status"
-	(cxml:text status)))
-    (when show
-      (cxml:with-element "show"
-	(cxml:text show)))
-    (when priority
-      (cxml:with-element "priority"
-	(cxml:text (format nil "~A" priority)))))))
-   
+    (cxml:with-element "presence"
+      (when type
+        (cxml:attribute "type" type))
+      (when to
+        (cxml:attribute "to" to))
+      (when status
+        (cxml:with-element "status"
+          (cxml:text status)))
+      (when show
+        (cxml:with-element "show"
+          (cxml:text show)))
+      (when priority
+        (cxml:with-element "priority"
+          (cxml:text (format nil "~A" priority)))))))
+
 (defmethod message ((connection connection) to body &key id (type :chat))
   (with-xml-output (connection)
-   (cxml:with-element "message"
-    (cxml:attribute "to" to)
-    (when id (cxml:attribute "id" id))
-    (when type (cxml:attribute "type" (string-downcase (string type))))
-    (cxml:with-element "body" (cxml:text body)))))
+    (cxml:with-element "message"
+      (cxml:attribute "to" to)
+      (when id (cxml:attribute "id" id))
+      (when type (cxml:attribute "type" (string-downcase (string type))))
+      (cxml:with-element "body" (cxml:text body)))))
 
 (defmethod bind ((connection connection) resource)
   (with-iq (connection :id "bind_2" :type "set")
-   (cxml:with-element "bind"
-    (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-bind")
-    (cxml:with-element "resource"
-     (cxml:text resource)))))
+    (cxml:with-element "bind"
+      (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-bind")
+      (cxml:with-element "resource"
+        (cxml:text resource)))))
 
 (defmethod session ((connection connection))
   (with-iq (connection :id "session_1" :type "set")
-   (cxml:with-element "session"
-    (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-session"))))
+    (cxml:with-element "session"
+      (cxml:attribute "xmlns" "urn:ietf:params:xml:ns:xmpp-session"))))
 
 ;;
 ;; Subscription
@@ -603,16 +603,16 @@ call presence on your behalf if the authentication was successful."
 ;;; both actions at once.
 (defmethod roster-add ((connection connection) jid name group)
   (with-iq-query (connection :id "roster_2" :type "set" :xmlns "jabber:iq:roster")
-   (cxml:with-element "item"
-    (cxml:attribute "jid" jid)
-    (cxml:attribute "name" name)
-    (cxml:with-element "group" group))))
+    (cxml:with-element "item"
+      (cxml:attribute "jid" jid)
+      (cxml:attribute "name" name)
+      (cxml:with-element "group" group))))
 
 (defmethod roster-remove ((connection connection) jid)
   (with-iq-query (connection :id "roster_4" :type "set" :xmlns "jabber:iq:roster")
-   (cxml:with-element "item"
-    (cxml:attribute "jid" jid)
-    (cxml:attribute "subscription" "remove"))))
+    (cxml:with-element "item"
+      (cxml:attribute "jid" jid)
+      (cxml:attribute "subscription" "remove"))))
 
 ;;
 ;; Privacy list
@@ -624,5 +624,5 @@ call presence on your behalf if the authentication was successful."
 
 (defmethod get-privacy-list ((connection connection) name)
   (with-iq-query (connection :id "getlist2" :xmlns "jabber:iq:privacy")
-   (cxml:with-element "list"
-    (cxml:attribute "name" name))))
+    (cxml:with-element "list"
+      (cxml:attribute "name" name))))
