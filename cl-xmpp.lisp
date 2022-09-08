@@ -7,7 +7,11 @@
 
 ;; Define our own error condition for server disconnections
 (define-condition server-disconnect (simple-condition)
-  ())
+  ((connection :initarg :connection
+               :reader connection))
+  (:report (lambda (disconnect stream)
+             (format stream "Server at ~a disconnected."
+                     (hostname (connection disconnect))))))
 
 (defclass connection ()
   ((server-stream
@@ -334,6 +338,8 @@ to HANDLE)."
 
 
 (defun read-stanza (connection)
+  (unless (connectedp connection)
+    (signal 'server-disconnect))
   (unless (server-source connection)
     (setf (server-source connection)
           (cxml:make-source
