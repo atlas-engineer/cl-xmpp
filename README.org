@@ -1,0 +1,62 @@
+#+TITLE: cl-xmpp
+
+This is a Common Lisp implementation of the XMPP RFCs.  Please
+see http://common-lisp.net/project/cl-xmpp for more information.
+
+Example -
+
+#+BEGIN_SRC lisp
+(require :cl-xmpp)
+(defvar *connection* (xmpp:connect :hostname "jabber.org"))
+#+END_SRC
+
+Alternatively, use =xmpp:connect-tls= if you loaded =cl-xmpp-tls=.
+Note that for XMPP servers which do not have the same hostname
+as the domain-part of the user's JID, you will have to pass that
+in. e.g. for Google Talk -
+#+BEGIN_SRC lisp
+(defvar *connection* (xmpp:connect-tls :hostname "talk.google.com"
+                                       :jid-domain-part "gmail.com"))
+
+(xmpp:auth *connection* "username" "password" "resource")
+#+END_SRC
+...or pass =:mechanism :sasl-plain=, =:digest-md5= or =sasl-digest-md5=
+if you loaded =cl-xmpp-sasl= or =cl-xmpp-tls=.
+
+Send someone a message
+#+BEGIN_SRC lisp
+(xmpp:message *connection* "username@hostname" "what's going on?")
+#+END_SRC
+
+Then sit back and watch the messages roll in...
+#+BEGIN_SRC lisp
+(xmpp:receive-stanza-loop *connection*)
+<MESSAGE from=username@hostname to=me@myserver>
+[....]
+#+END_SRC
+
+...or use =xmpp:receive-stanza= if you want just one stanza
+(note it will still block until you have received a complete
+stanza)
+
+That's it.  Interrupt the loop to issue other commands, e.g.
+#+BEGIN_SRC lisp
+(xmpp:get-roster *connection*)
+#+END_SRC
+
+...or any of the other ones you may find by looking through [[file:cl-xmpp.lisp][cl-xmpp.lisp]]
+and [[file:package.lisp][package.lisp]] to see which ones are exported.
+
+If you wish to handle the incoming messages or other objects simply
+specify an =xmpp:handle= method for the objects you are interested in
+or =(defmethod xmpp:handle (connection object) ...)=  to get them
+all.  Or alternatively specify =:dom-repr t= to =receive-stanza-loop=
+to get DOM-ish objects.
+
+For example, if you wanted to create an annoying reply bot -
+
+#+BEGIN_SRC lisp
+(defmethod xmpp:handle ((connection xmpp:connection) (message xmpp:message))
+  (xmpp:message connection (xmpp:from message)
+                (format nil "reply to: ~a" (xmpp:message object))))
+#+END_SRC
